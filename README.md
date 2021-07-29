@@ -2,6 +2,8 @@
 A language heavily derived from Expression2.  
 This was originally created to be a template to rewrite E2 for S&box, however at this point I don't really care about S&box nor am I interested in C#.  
 
+All credit and ownership of Expression2 goes to the [wireteam](https://github.com/wiremod) & [wiremod](https://github.com/wiremod/wire).  
+
 ## Compiler
 The compiler currently hasn't been finished. Most of the work has been done on the *Transpiler* for now.
 
@@ -25,7 +27,8 @@ E2 randomly swapped || and | / & and &&. && was made into bitwise and rather tha
 The language is optimized for speed. E2 was known to be very slow, and this is no longer the case through typing and other optimizations.  
 *Although, admittedly Haxe is nowhere near the best language for trying to get something to be fast.
 
-General State:
+## General State
+Here's a general status of each part of the language.
 | Name | Status | Desc |
 | ---  | ---    |  ---  |
 | Preprocessor | 🚧 | Unfinished |
