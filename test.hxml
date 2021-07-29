@@ -1,0 +1,11 @@
+
+--library utest
+--library iterators
+--library haxe-strings
+--library safety
+-D utest
+
+--class-path src
+--class-path tests
+
+--main tests.TestMain

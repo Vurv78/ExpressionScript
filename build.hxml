@@ -1,0 +1,13 @@
+
+--dce full
+
+--library iterators
+--library haxe-strings
+--library safety
+
+--class-path src
+--main Main
+
+--cpp bin/cpp
+
+# Can also do other targets
