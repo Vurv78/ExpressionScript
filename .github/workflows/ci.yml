@@ -25,5 +25,12 @@ jobs:
         with:
           haxe-version: 4.2.0
 
+      - name: Setup Haxe dependencies
+        run: |
+          haxelib install utest
+          haxelib install iterators
+          haxelib install haxe-strings
+          haxelib install safety
+
       - name: Run tests
         run: haxe test.hxml
