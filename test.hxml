@@ -8,4 +8,5 @@
 --class-path src
 --class-path tests
 
---main tests.TestMain
+--macro utest.utils.Macro.checkHaxe()
+--run TestMain

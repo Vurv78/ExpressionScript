@@ -38,3 +38,7 @@ Here's a general status of each part of the language.
 | Compiler| 🚧 | Unfinished. |
 | Transpiler| 🚧🏗️ | Unfinished. |
 | Tests| 🚧 | Unfinished. |
+
+## Running Tests
+Tests are using the [utest](https://github.com/haxe-utest/utest) library.  
+Use ``haxe test.hxml`` to run them.

@@ -1,14 +1,27 @@
 package base;
 
-final COMMENT = ~/#[^\n]*/;
-final ML_COMMENT = ~/#\[.*\]#/;
-final DIRECTIVE = ~/@[^\n]*/;
 
-// TODO: Make this work, pretty sure it doesn't right now. Woo
+/**
+ * Preprocessor class
+ * Has a basic regex Map (repl) that can be used to preprocess code before running.
+ * You can modify the regexes to your needs but by default will remove comments & directives.
+ */
+class Preprocessor {
+	var repl: Map<EReg, String>;
+	public function process(script: String) {
+		var processed = script;
+		for (regex => with in repl)
+			processed = regex.replace(processed, "");
 
-function process(script: String) {
-	var processed = ML_COMMENT.replace(script, "");
-	processed = COMMENT.replace(script, "");
-	processed = DIRECTIVE.replace(script, "");
-	return processed;
+		return processed;
+	}
+
+	public function new() {
+		final repl = [
+			~/#[^\n]*/ => "", // Single-line comment
+			~/#\[.*\]#/ => "", // Multiline
+			~/@[^\n]*/ => "" // Directive
+		];
+		this.repl = repl;
+	}
 }
