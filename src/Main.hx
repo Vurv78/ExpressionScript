@@ -4,18 +4,22 @@ using Iterators;
 final CODE = sys.io.File.getContent("script.e2");
 
 function main() {
-	final tokens = base.Tokenizer.process(CODE);
+	final preprocessor = new base.Preprocessor();
+	final code = preprocessor.process(CODE);
+
+	final tokenizer = new base.Tokenizer();
+	final tokens = tokenizer.process(code);
 
 	final parser = new base.Parser();
-	var stuff = parser.process(tokens);
+	final ast = parser.process(tokens);
 
-	var code = base.transpiler.Lua.process(stuff);
+	final lua_code = base.transpiler.Lua.process(ast);
 
 	if (!FileSystem.exists("out"))
 		FileSystem.createDirectory("out");
 
 	final handle = sys.io.File.write('out/script.lua');
-		handle.writeString(code);
+		handle.writeString(lua_code);
 	handle.close();
 
 	Sys.println("Done!");

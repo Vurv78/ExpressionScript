@@ -1,3 +1,11 @@
+# Test comment
+
+#[
+	Useless line of text
+	:P
+]#
+@name Test
+
 
 GlobalVar = 400
 

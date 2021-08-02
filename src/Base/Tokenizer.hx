@@ -45,7 +45,7 @@ enum TokenType {
 		return new TokenFlag(i);
 }
 
-class Tokenizer {
+class TokenMatch {
 	final pattern: EReg;
 
 	public final id: String;
@@ -75,32 +75,6 @@ class Tokenizer {
 		return null;
 	}
 }
-
-final TOKENIZERS = [
-	new Tokenizer( "whitespace", ~/\s+/, TokenType.Whitespace, TokenFlag.NoCatch ),
-
-	new Tokenizer( "grammar", ~/{|}|,|;|:|\(|\)|\[|\]/, TokenType.Grammar),
-
-	new Tokenizer( "keyword", ~/if|elseif|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return/, TokenType.Keyword ),
-
-	new Tokenizer( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(pattern) {
-		return E2Type.String( pattern.matched(0) );
-	}),
-
-	new Tokenizer( "number", ~/-?(\d*\.)?\d+/, TokenType.Literal, TokenFlag.None, function(pattern) {
-		// In the future make this allow for rust strings etc
-		var value = Std.parseFloat( pattern.matched(0) );
-		if (Math.isNaN(value))
-			throw "Invalid number matched! Wtf????"; // Shouldn't happen as long as our regex is good.
-		return E2Type.Number(value);
-	}),
-
-	new Tokenizer( "constant", ~/_\w+/, TokenType.Constant ),
-	new Tokenizer( "identifier", ~/[A-Z]\w*/, TokenType.Identifier ), // Variable name.
-	new Tokenizer( "func_name", ~/[a-z]\w*/, TokenType.Identifier ),
-	new Tokenizer( "type", ~/[a-z]+/, TokenType.Type ),
-	new Tokenizer( "operator", ~/==|!=|\*=|\+=|-=|\/=|%=|<<|>>|&&|\|{2}|\+{2}|->|>=|<=|\^{2}|\?:|<|>|\+|-|\*|\/|=|!|~|\$|~|\?|%|\||\^|&|:/, TokenType.Operator ),
-];
 
 class Token {
 	public final start: Int;
@@ -136,14 +110,14 @@ class Token {
 		this.literal = E2Type.Void;
 	}
 
-	public static function from( result: {pos: Int, len: Int}, raw: String, tokenizer: Tokenizer ): Token {
+	public static function from( result: {pos: Int, len: Int}, raw: String, matcher: TokenMatch ): Token {
 		return new Token(
 			result.pos,
 			result.len,
 			raw,
-			tokenizer.id,
-			tokenizer.flag,
-			tokenizer.tt
+			matcher.id,
+			matcher.flag,
+			matcher.tt
 		);
 	}
 
@@ -153,35 +127,66 @@ class Token {
 	}
 }
 
-function process(script: String): Array<Token> {
-	var out = [];
-	var pointer = 0; // Current position
-	var cur_line = 1;
-	var whitespaced = false; // Whether the token was preceeded by whitespace.
+class Tokenizer {
+	var token_matchers: Array<TokenMatch>;
+	public function new() {
+		this.token_matchers = [
+			new TokenMatch( "whitespace", ~/\s+/, TokenType.Whitespace, TokenFlag.NoCatch ),
 
-	var did_match;
-	do {
-		did_match = false;
-		for (tokenizer in TOKENIZERS) {
-			final name = tokenizer.id;
-			final token = tokenizer.match(script, pointer);
-			if ( token != null ) {
-				pointer = token.end;
-				if ( !tokenizer.flag.has(TokenFlag.NoCatch) ) {
-					token.line = cur_line;
-					token.whitespaced = whitespaced;
-					out.push(token);
-				} else if (token.tt == TokenType.Whitespace) {
-					cur_line += token.raw.countMatches("\n");
+			new TokenMatch( "grammar", ~/{|}|,|;|:|\(|\)|\[|\]/, TokenType.Grammar),
+
+			new TokenMatch( "keyword", ~/if|elseif|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return/, TokenType.Keyword ),
+
+			new TokenMatch( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(pattern) {
+				return E2Type.String( pattern.matched(0) );
+			}),
+
+			new TokenMatch( "number", ~/-?(\d*\.)?\d+/, TokenType.Literal, TokenFlag.None, function(pattern) {
+				// In the future make this allow for rust strings etc
+				var value = Std.parseFloat( pattern.matched(0) );
+				if (Math.isNaN(value))
+					throw "Invalid number matched! Wtf????"; // Shouldn't happen as long as our regex is good.
+				return E2Type.Number(value);
+			}),
+
+			new TokenMatch( "constant", ~/_\w+/, TokenType.Constant ),
+			new TokenMatch( "identifier", ~/[A-Z]\w*/, TokenType.Identifier ), // Variable name.
+			new TokenMatch( "func_name", ~/[a-z]\w*/, TokenType.Identifier ),
+			new TokenMatch( "type", ~/[a-z]+/, TokenType.Type ),
+			new TokenMatch( "operator", ~/==|!=|\*=|\+=|-=|\/=|%=|<<|>>|&&|\|{2}|\+{2}|->|>=|<=|\^{2}|\?:|<|>|\+|-|\*|\/|=|!|~|\$|~|\?|%|\||\^|&|:/, TokenType.Operator )
+		];
+	}
+
+	public function process(script: String): Array<Token> {
+		var out = [];
+		var pointer = 0; // Current position
+		var cur_line = 1;
+		var whitespaced = false; // Whether the token was preceeded by whitespace.
+
+		var did_match;
+		do {
+			did_match = false;
+			for (tokenizer in this.token_matchers) {
+				final name = tokenizer.id;
+				final token = tokenizer.match(script, pointer);
+				if ( token != null ) {
+					pointer = token.end;
+					if ( !tokenizer.flag.has(TokenFlag.NoCatch) ) {
+						token.line = cur_line;
+						token.whitespaced = whitespaced;
+						out.push(token);
+					} else if (token.tt == TokenType.Whitespace) {
+						cur_line += token.raw.countMatches("\n");
+					}
+					whitespaced = ( token.tt == TokenType.Whitespace );
+					did_match = true;
+					break;
 				}
-				whitespaced = ( token.tt == TokenType.Whitespace );
-				did_match = true;
-				break;
 			}
-		}
-		if (!did_match)
-			throw new haxe.Exception('Unknown character ["${ script.charAt(pointer) }"] at line $cur_line, char $pointer in script.');
-	} while( pointer < script.length );
+			if (!did_match)
+				throw new haxe.Exception('Unknown character ["${ script.charAt(pointer) }"] at line $cur_line, char $pointer in script.');
+		} while( pointer < script.length );
 
-	return out;
+		return out;
+	}
 }
