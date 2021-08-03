@@ -51,14 +51,14 @@ class TokenMatch {
 	public final id: String;
 	public final flag: TokenFlag;
 	public final tt: TokenType;
-	final literal_fn: Null<(p: EReg)->E2Type>;
+	final processor: Null<(token: Token, pattern: EReg)->Void>;
 
-	public function new(identifier: String, pattern: EReg, tt: TokenType, ?flag: TokenFlag, ?get_tokendata: (pattern: EReg)->E2Type ) {
+	public function new(identifier: String, pattern: EReg, tt: TokenType, ?flag: TokenFlag, ?processor: (token: Token, pattern: EReg)->Void ) {
 		this.id = identifier;
 		this.tt = tt;
 		this.flag = flag;
 		this.pattern = pattern;
-		this.literal_fn = get_tokendata;
+		this.processor = processor;
 	}
 
 	public function match(haystack: String, pos: Int = 0): Null<Token> {
@@ -66,8 +66,8 @@ class TokenMatch {
 			final matchedpos = this.pattern.matchedPos();
 			if (matchedpos.pos == pos) {
 				var tok = Token.from( matchedpos, this.pattern.matched(0), this );
-				if (this.literal_fn != null)
-					tok.literal = this.literal_fn(this.pattern);
+				if (this.processor != null)
+					this.processor(tok, this.pattern);
 
 				return tok;
 			}
@@ -80,11 +80,11 @@ class Token {
 	public final start: Int;
 	public final len: Int;
 	public final end: Int;
-	public final raw: String;
+	public var raw: String;
 
-	public final id: String;
+	public var id: String;
 	public final flag: TokenFlag;
-	public final tt: TokenType;
+	public var tt: TokenType;
 
 	public var literal: E2Type; // Inferred value or the string that is more specifically the value.
 
@@ -135,21 +135,31 @@ class Tokenizer {
 
 			new TokenMatch( "grammar", ~/{|}|,|;|:|\(|\)|\[|\]/, TokenType.Grammar),
 
-			new TokenMatch( "keyword", ~/if|elseif|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return/, TokenType.Keyword ),
+			new TokenMatch( "keyword", ~/elseif|if|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return|do/, TokenType.Keyword ),
 
-			new TokenMatch( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(pattern) {
+			new TokenMatch( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
 				return E2Type.String( pattern.matched(0) );
 			}),
 
-			new TokenMatch( "number", ~/-?(\d*\.)?\d+/, TokenType.Literal, TokenFlag.None, function(pattern) {
+			new TokenMatch( "number", ~/-?(\d*\.)?\d+/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
 				// In the future make this allow for rust strings etc
 				var value = Std.parseFloat( pattern.matched(0) );
 				if (Math.isNaN(value))
 					throw "Invalid number matched! Wtf????"; // Shouldn't happen as long as our regex is good.
-				return E2Type.Number(value);
+				token.literal = E2Type.Number(value);
 			}),
 
-			new TokenMatch( "constant", ~/_\w+/, TokenType.Constant ),
+			new TokenMatch( "constant", ~/_\w[_\w]*/, TokenType.Constant, TokenFlag.None, function(token, pattern) {
+				var name = pattern.matched(0);
+
+				// Turn the constant token into a literal token
+				// This is a really weird system and exactly how E2 does it. I might move this logic to the preprocessor at some point
+				// (When I make it not fuck up traces)
+				token.id = "number";
+				token.literal = E2Type.Number(1000);
+				token.tt = TokenType.Literal;
+				token.raw = "1000";
+			}),
 			new TokenMatch( "identifier", ~/[A-Z]\w*/, TokenType.Identifier ), // Variable name.
 			new TokenMatch( "func_name", ~/[a-z]\w*/, TokenType.Identifier ),
 			new TokenMatch( "type", ~/[a-z]+/, TokenType.Type ),

@@ -1,22 +1,6 @@
-# Test comment
-
-#[
-	Useless line of text
-	:P
-]#
-@name Test
-
-
 GlobalVar = 400
 
-function doStuff() {
-	local TestVar = 5
-
-	local Six = TestVar + 1
-	TestVar++
-
-	assert(TestVar == Six, "what?")
-}
+print(_AAAAAAAAAAA)
 
 while(1) {
 	print("while true do end")
