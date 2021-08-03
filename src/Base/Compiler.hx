@@ -43,7 +43,6 @@ class Compiler {
 	 * @param root Parser result from Parser.hx
 	 */
 	public function process(root: Instruction) {
-		trace('${root.name}');
 		Compiler.callInstruction(root.name, root.args);
 	}
 
@@ -103,9 +102,7 @@ class Compiler {
 class Instructions {
 	@:keep
 	static function root(instr: Instruction) {
-		//trace(instr);
 		Compiler.callInstruction(instr.name, instr.args);
-		return 69;
 	}
 
 	@:keep

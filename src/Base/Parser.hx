@@ -257,8 +257,7 @@ class Parser {
 
 			if (this.acceptRoamingToken("grammar", ",")) {
 				if (!this.acceptRoamingToken("type")) {
-					trace( this.getTokenTrace() );
-					this.error("Indexing operator ([]) requires a lower case type [X,t]");
+					this.error("Indexing operator ([]) requires a lowercase type [X,t]");
 				}
 
 				var typename = this.getTokenRaw();

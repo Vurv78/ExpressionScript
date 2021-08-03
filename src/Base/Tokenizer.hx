@@ -123,7 +123,7 @@ class Token {
 
 	// Debugging
 	function toString() {
-		return 'Token [pos: {${this.start}, ${this.end}}, tt: ${this.tt}, raw: "${this.raw}", id: ${this.id}, line: ${this.line}, %s: ${this.whitespaced}, literal: ${this.literal}]';
+		return 'Token [pos: {${this.start}, ${this.end}}, tt: ${this.tt}, raw: "${this.raw}", id: ${this.id}, line: ${this.line}, whitespaced: ${this.whitespaced}, literal: ${this.literal}]';
 	}
 }
 
