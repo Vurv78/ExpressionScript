@@ -18,9 +18,9 @@ class Preprocessor {
 
 	public function new() {
 		final repl = [
-			~/#[^\n]*/ => "", // Single-line comment
-			~/#\[[\s\S]*\]#/ => "", // Multiline
-			~/@[^\n]*/ => "" // Directive
+			~/#[^\n]*/g => "", // Single-line comment
+			~/#\[[\s\S]*\]#/g => "", // Multiline
+			~/@[^\n]*/g => "" // Directive
 		];
 		this.repl = repl;
 	}

@@ -15,7 +15,12 @@ import base.Tokenizer.TokenFlag;
 
 final wire_expression_types = [
 	"number" => [],
-	"string" => []
+	"string" => [],
+	"table" => [],
+	"array" => [],
+	"vector" => [],
+
+	"entity" => [] // placeholder
 ];
 
 /*
@@ -251,10 +256,12 @@ class Parser {
 			var exp = this.expr1();
 
 			if (this.acceptRoamingToken("grammar", ",")) {
-				if (!this.acceptRoamingToken("type"))
+				if (!this.acceptRoamingToken("type")) {
+					trace( this.getTokenTrace() );
 					this.error("Indexing operator ([]) requires a lower case type [X,t]");
+				}
 
-				var typename = getTokenRaw();
+				var typename = this.getTokenRaw();
 
 				var type = wire_expression_types.get( typename.toUpperCase() );
 
@@ -526,7 +533,7 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "while")) {
 			var trace = this.getTokenTrace();
 			this.depth++;
-			var whl = this.instruction( trace, "_while", [this.acceptCondition(), this.acceptBlock("while condition")] );
+			var whl = this.instruction( trace, "_while", [this.acceptCondition(), this.acceptBlock("while condition"), false] );
 			this.depth--;
 			return whl;
 		}
@@ -888,6 +895,26 @@ class Parser {
 			this.error("Void may only exist after return");
 		}
 
+		return stmt11();
+	}
+
+	// do {} while(1)
+	function stmt11(): Instruction {
+		if (this.acceptRoamingToken("keyword", "do")) {
+			var trace = this.getTokenTrace();
+
+			this.depth++;
+			var block = this.acceptBlock("do keyword");
+
+			if ( !this.acceptRoamingToken("keyword", "while") )
+				this.error("while expected after do block");
+
+			var condition = this.acceptCondition();
+
+			final instr = this.instruction( trace, "_while", [condition, block, true] );
+			this.depth--;
+			return instr;
+		}
 		return expr1();
 	}
 
@@ -924,7 +951,7 @@ class Parser {
 			if (!this.acceptRoamingToken("grammar", ":"))
 				this.error( "Conditional operator (:) must appear after expression to complete conditional", this.getToken() );
 
-			return this.instruction( trace, "cnd", [expr, exprtrue, this.expr1()] );
+			return this.instruction( trace, "ternary", [expr, exprtrue, this.expr1()] );
 		}
 
 		if (this.acceptRoamingToken("keyword", "default")) {
@@ -1022,7 +1049,7 @@ class Parser {
 
 				var aexpr = this.expr1();
 				if (this.acceptRoamingToken("grammar", ",")) {
-					if (!this.acceptRoamingToken("func_name"))
+					if (!this.acceptRoamingToken("type"))
 						this.error("Indexing operator ([]) requires a lower case type [X,t]");
 
 					// TODO: maybe replace with another function
@@ -1063,13 +1090,13 @@ class Parser {
 				}
 
 				if (this.acceptRoamingToken("grammar", "[")) {
-					if (!this.acceptRoamingToken("fun"))
+					if (!this.acceptRoamingToken("type"))
 						this.error("Return type operator ([]) requires a lower case type [type]");
 
 					var longtp = this.getTokenRaw();
 
 					if (!this.acceptRoamingToken("grammar", "]"))
-						this.error("Right square bracket (]) missing, to close return type operator [type]");
+						this.error("Right square bracket (]) missing, to close return type operator");
 
 					if (wire_expression_types.get( longtp.toUpperCase() ) == null)
 						this.error('Return type operator ([]) does not support the type [$longtp]');
@@ -1090,6 +1117,7 @@ class Parser {
 
 	function expr16() {
 		if (this.acceptRoamingToken("grammar", "(")) {
+			var trace = this.getTokenTrace();
 			var token = this.getToken();
 			var expr = this.expr1();
 
@@ -1097,7 +1125,7 @@ class Parser {
 				this.error("Right parenthesis ()) missing, to close grouped equation", token);
 			}
 
-			return expr;
+			return this.instruction( trace, "grouped_equation", [expr] );
 		}
 
 		if (this.acceptRoamingToken("func_name")) {

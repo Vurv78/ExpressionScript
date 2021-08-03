@@ -19,7 +19,7 @@ class Instructions {
 		var out = [];
 		for (instr in instrs)
 			out.push( callInstruction(instr.name, instr.args) );
-		return out.join('\n');
+		return out.join('\n\n').replaceAll("\t\n", '');
 	}
 
 	static function call(name: String, kvargs: Map<Dynamic, Instruction>, iargs: Array<Instruction>) {
@@ -35,8 +35,8 @@ class Instructions {
 		return '$name()';
 	}
 
-	static function methodcall(fname: String, instr: Instruction)
-		return 'methodcall, idk';
+	static function methodcall(meta_fname: String, meta_obj: Instruction, iargs: Array<Instruction>)
+		return '${ callInline(meta_obj) }:$meta_fname(${ (iargs!=null) ? iargs.map(x -> callInline(x)).join(", ") : '' })';
 
 	static function literal(value: E2Type, raw: String)
 		return raw;
@@ -54,10 +54,9 @@ class Instructions {
 			return 'block is null';
 		}
 
-		return '-- IfElse/Else is currently broken. \n'+
-				'if ${ callInline(cond) } then\n' +
-					'\t${ callBlock(block, true) }\n' +
-				'end';
+		return 'if ${ callInline(cond) } then\n' +
+			'\t${ callBlock(block, true) }\n' +
+		'end';
 
 		/*return 'if ${ callInline(cond) } then\n' +
 			'\t$block\n' +
@@ -88,14 +87,19 @@ class Instructions {
 		'end';
 	}
 
-	static function _while(cond: Instruction, block: Instruction) {
-		IN_SWITCH = false;
-		var buf = new StringBuf();
-		buf.add( 'while ${ callInline(cond) } do\n' );
-			buf.add( '\t${callBlock(block, true)}\n' );
-			buf.add( '\t::continue::\n' );
-		buf.add( 'end' );
-		return buf.toString();
+	static function _while(cond: Instruction, block: Instruction, is_dowhile: Bool) {
+		if (is_dowhile) {
+			// Not using a repeat until
+			return 'while true do\n' +
+				'\t${ callBlock(block, true) }' +
+				'\tif not cond then break end\n' +
+			'end';
+		}
+
+		return 'while ${ callInline(cond) } do\n' +
+			'\t${ callBlock(block, true) }\n' +
+			'\t::continue::\n' +
+		'end';
 	}
 
 	static function variable(name: String)
@@ -105,17 +109,15 @@ class Instructions {
 		IN_SWITCH = true;
 		var topvar = callInline(topexpr);
 
-		var out = "-- Switch case --\n" +
-			'local swc = $topvar\n';
-
+		var out = 'local _switch_result = $topvar\n';
 		for (key => c in cases) {
 			if (c.match != null) {
 				var match = callInline(c.match);
-				out += ('${key == 0 ? '' : 'else'}if swc == $match then\n' +
+				out += ('${key == 0 ? '' : 'else'}if _switch_result == $match then\n' +
 					'\t${ callBlock(c.block, true) }\n');
 			} else {
-				out += ('else\n' +
-				'\t${ callBlock(c.block, true) }\n');
+				out += 'else\n' +
+				'\t${ callBlock(c.block, true) }\n';
 				break;
 			}
 		}
@@ -140,33 +142,54 @@ class Instructions {
 		return '$varname = $varname - 1';
 
 	static function add(v: Instruction, addend: Instruction)
-		return '(${ callInline(v) } + ${ callInline(addend) })';
+		return '${ callInline(v) } + ${ callInline(addend) }';
 
 	static function sub(v: Instruction, addend: Instruction)
-		return '(${ callInline(v) } - ${ callInline(addend) })';
+		return '${ callInline(v) } - ${ callInline(addend) }';
 
 	static function div(v: Instruction, addend: Instruction)
-		return '(${ callInline(v) } / ${ callInline(addend) })';
+		return '${ callInline(v) } / ${ callInline(addend) }';
 
 	static function mul(v: Instruction, addend: Instruction)
-		return '(${ callInline(v) } * ${ callInline(addend) })';
+		return '${ callInline(v) } * ${ callInline(addend) }';
 
 	static function assign(varname: String, to: Instruction)
 		return '$varname = ${ callInline(to) }';
 
 	static function eq(v1: Instruction, v2: Instruction)
-		return '(${ callInline(v1) } == ${ callInline(v2) })';
+		return '${ callInline(v1) } == ${ callInline(v2) }';
 
 	static function neq(v1: Instruction, v2: Instruction)
-		return '(${ callInline(v1) } ~= ${ callInline(v2) })';
+		return '${ callInline(v1) } ~= ${ callInline(v2) }';
+
+	static function leq(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } <= ${ callInline(v2) }';
+
+	static function geq(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } >= ${ callInline(v2) }';
+
+	static function grouped_equation(v1: Instruction)
+		return '(${ callInline(v1) })';
 
 	static function assignlocal(varname: String, to: Instruction)
 		return 'local $varname = ${ callInline(to) }';
 
-	static function function_decl(name: String, ret_type: String, type: String, sig: String, args: Array<{name: String, type: String}>, decl: Instruction) {
-		return 'function $name(${ args.map( (v) -> v.name ).join(", ") })\n' +
+	static function function_decl(name: String, ret_type: String, meta_type: String, sig: String, args: Array<{name: String, type: String}>, decl: Instruction) {
+		return 'function ${(meta_type != null) ? '${meta_type}_' : ''}$name(${ args.map( (v) -> v.name ).join(", ") })\n' +
 			'\t${ callBlock(decl, true) }\n' +
 		'end';
+	}
+
+	static function ternary(cond: Instruction, success: Instruction, fallback: Instruction)
+		return '${ callInline(cond) } and ${ callInline(success) } or ${ callInline(fallback) }';
+
+	// Bitwise ops
+	static function bor(v1: Instruction, v2: Instruction) {
+		#if LUA54
+			return '${ callInline(v1) } | ${ callInline(v2) }';
+		#else
+			return 'bit.bor(${ callInline(v1) }, ${ callInline(v2) })';
+		#end
 	}
 }
 
