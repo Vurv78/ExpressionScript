@@ -5,6 +5,8 @@ import utest.Test;
 
 import lib.Type.E2Type;
 
+using hx.strings.Strings;
+
 class Preprocessor extends Test {
 	var processor: base.Preprocessor;
 	var script: String;
@@ -19,6 +21,8 @@ class Preprocessor extends Test {
 	 */
 	public function testPreprocess() {
 		var result = this.processor.process(this.script);
-		Assert.equals(result, '\n\nprint("Hello world")');
+
+		// It should replace the directive with 8 spaces.
+		Assert.equals('         \nprint("Hello world")', result );
 	}
 }
