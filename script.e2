@@ -1,4 +1,11 @@
+@name ExpressionScript Test
 GlobalVar = 400
+
+#[
+	Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+	Nam euismod, tortor sed cursus placerat, massa nunc lobortis turpis,
+	ut vehicula ante nunc eget eros.
+]#
 
 print(_AAAAAAAAAAA)
 
