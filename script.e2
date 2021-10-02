@@ -23,3 +23,9 @@ switch (Var) {
 		print("this won't")
 	break
 }
+
+try {
+	error("Hello world")
+} catch(Err) {
+	print(Err)
+}

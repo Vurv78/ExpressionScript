@@ -20,11 +20,8 @@ class Tokenizer extends Test {
 	/**
 	 * Make sure we properly get the literal number value out of a basic operation.
 	 */
-	/*
-		Haxe/utest is fucking stupid 👍
 	public function testLiteralNumber() {
 		final tokens = this.tokenizer.process(this.script);
 		Assert.equals( E2Type.Number(212), tokens[2].literal );
 	}
-	*/
 }

@@ -11,23 +11,29 @@ private function FILL_WHITESPACE(x: EReg) {
  * You can modify the regexes to your needs but by default will remove comments & directives.
  */
 class Preprocessor {
-	var repl: Map<EReg, (EReg)->String>;
+	var repl: Map<EReg, (EReg)->String> = [];
+	var repl_order: Array<EReg> = [];
+	var repl_order_index: UInt = 0;
 
 	public function process(script: String) {
 		var processed = script;
 
-		for (regex => with in repl)
-			processed = regex.map( processed, with );
+		for (regex in repl_order)
+			processed = regex.map( processed, this.repl[regex] );
 
 		return processed;
 	}
 
+	public function add_replacement(regex: EReg, with: (EReg)->String) {
+		// Haxe is dying with optionals for me so I can't have an override for repl_order_index. :/
+		this.repl_order[repl_order_index] = regex;
+		this.repl_order_index++;
+		this.repl[regex] = with;
+	}
+
 	public function new() {
-		final repl = [
-			~/#\[[\s\S]*\]#/g => FILL_WHITESPACE, // Single-line comment
-			~/#[^\n]*/g => FILL_WHITESPACE, // Multiline
-			~/@[^\n]*/g => FILL_WHITESPACE // Directive
-		];
-		this.repl = repl;
+		this.add_replacement( ~/#\[[\s\S]*\]#/g, FILL_WHITESPACE ); // Multiline comment
+		this.add_replacement( ~/#[^\n]*/g, FILL_WHITESPACE ); // Single line comment
+		this.add_replacement( ~/@[^\n]*/g, FILL_WHITESPACE ); // Directive
 	}
 }

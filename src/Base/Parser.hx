@@ -324,7 +324,7 @@ class Parser {
 
 	function acceptIfElseIf() {
 		if (this.acceptRoamingToken("keyword", "elseif"))
-			return this.instruction( this.getTokenTrace(), "_if", [this.acceptCondition(), this.acceptBlock("else if condition"), true, this.acceptIfElseIf()] );
+			return this.instruction( this.getTokenTrace(), "if", [this.acceptCondition(), this.acceptBlock("else if condition"), true, this.acceptIfElseIf()] );
 
 		return this.acceptIfElse();
 	}
@@ -523,7 +523,7 @@ class Parser {
 	function stmt1() {
 		if (this.acceptRoamingToken("keyword", "if")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "_if", [this.acceptCondition(), this.acceptBlock("if condition"), false, this.acceptIfElseIf()] );
+			return this.instruction( trace, "if", [this.acceptCondition(), this.acceptBlock("if condition"), false, this.acceptIfElseIf()] );
 		}
 		return this.stmt2();
 	}
@@ -532,7 +532,7 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "while")) {
 			var trace = this.getTokenTrace();
 			this.depth++;
-			var whl = this.instruction( trace, "_while", [this.acceptCondition(), this.acceptBlock("while condition"), false] );
+			var whl = this.instruction( trace, "while", [this.acceptCondition(), this.acceptBlock("while condition"), false] );
 			this.depth--;
 			return whl;
 		}
@@ -570,7 +570,7 @@ class Parser {
 			if (!this.acceptRoamingToken("grammar", ")"))
 				this.error("Right parenthesis ()) missing, to close condition");
 
-			var sfor = this.instruction( trace, "_for", [v, estart, estop, estep, this.acceptBlock("for statement")] );
+			var sfor = this.instruction( trace, "for", [v, estart, estop, estep, this.acceptBlock("for statement")] );
 
 			this.depth--;
 			return sfor;
@@ -649,14 +649,14 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "break")) {
 			if (this.depth > 0) {
 				var trace = this.getTokenTrace();
-				return this.instruction(trace, "_break", []);
+				return this.instruction(trace, "break", []);
 			} else {
 				this.error("Break may not exist outside of a loop");
 			}
 		} else if (this.acceptRoamingToken("keyword", "continue")) {
 			if (this.depth > 0) {
 				var trace = this.getTokenTrace();
-				return this.instruction(trace, "_continue", []);
+				return this.instruction(trace, "continue", []);
 			} else {
 				this.error("Continue may not exist outside of a loop");
 			}
@@ -784,7 +784,7 @@ class Parser {
 			var cases = this.acceptSwitchBlock();
 			this.depth--;
 
-			return this.instruction(trace, "_switch", [expr, cases]);
+			return this.instruction(trace, "switch", [expr, cases]);
 		}
 
 		return stmt10();
@@ -882,14 +882,14 @@ class Parser {
 
 			// TODO: Make sure you can't overwrite existing functions with the signature.
 
-			return this.instruction( trace, "function_decl", [name, ret, type, sig, args, this.acceptBlock("function declaration")] );
+			return this.instruction( trace, "fndecl", [name, ret, type, sig, args, this.acceptBlock("function declaration")] );
 		} else if ( this.acceptRoamingToken("keyword", "return") ) {
 			var trace = this.getTokenTrace();
 
 			if ( this.acceptRoamingToken("type", "void") || (this.readtoken != null && this.readtoken.raw == "}" /* check if readtoken is rcb */ ) )
-				return this.instruction( trace, "_return", [] );
+				return this.instruction( trace, "return", [] );
 
-			return this.instruction( trace, "_return", [this.expr1()] );
+			return this.instruction( trace, "return", [this.expr1()] );
 		} else if ( this.acceptRoamingToken("type", "void") ) {
 			this.error("Void may only exist after return");
 		}
@@ -910,9 +910,41 @@ class Parser {
 
 			var condition = this.acceptCondition();
 
-			final instr = this.instruction( trace, "_while", [condition, block, true] );
+			final instr = this.instruction( trace, "while", [condition, block, true] );
 			this.depth--;
 			return instr;
+		}
+		return stmt12();
+	}
+
+	/**
+	 *	```
+	 *	try {
+	 *		error("hi")
+	 *	} catch(Err) {
+	 *		print(Err)
+	 *	}
+	**/
+	function stmt12(): Instruction {
+		if (this.acceptRoamingToken("keyword", "try")) {
+			var trace = this.getTokenTrace();
+			var stmt = this.acceptBlock("try block");
+
+			if (!this.acceptRoamingToken("keyword", "catch"))
+				this.error("Try block must be followed by catch statement");
+
+			if (!this.acceptRoamingToken("grammar", "("))
+				this.error("Left parenthesis (() expected after catch keyword");
+
+			if (!this.acceptRoamingToken("identifier"))
+				this.error("Variable expected after left parenthesis (() in catch statement");
+
+			var var_name = this.getTokenRaw();
+
+			if (!this.acceptRoamingToken("grammar", ")"))
+				this.error("Right parenthesis ()) missing, to close catch statement");
+
+			return this.instruction(trace, "try", [stmt, var_name, this.acceptBlock("catch block")] );
 		}
 		return expr1();
 	}
@@ -962,12 +994,12 @@ class Parser {
 		return expr;
 	}
 
-	// We flipped the binary ops back to normal programming style.
-	// || is logical OR, | is bitwise.
-	function expr3() return this.recurseLeftOp(this.expr4, ["|"], ["bor"]); // bitwise or
-	function expr4() return this.recurseLeftOp(this.expr5, ["&"], ["band"]); // bitwise and
-	function expr5() return this.recurseLeftOp(this.expr6, ["||"], ["or"]); // logical or
-	function expr6() return this.recurseLeftOp(this.expr7, ["&&"], ["and"]); // logical and
+	// Yes, || and && are swapped. They should be logical ops but they are binary ops.
+	// We're trying to keep parity with E2, so this will be kept.
+	function expr3() return this.recurseLeftOp(this.expr4, ["||"], ["bor"]); // bitwise or
+	function expr4() return this.recurseLeftOp(this.expr5, ["&&"], ["band"]); // bitwise and
+	function expr5() return this.recurseLeftOp(this.expr6, ["|"], ["or"]); // logical or
+	function expr6() return this.recurseLeftOp(this.expr7, ["&"], ["and"]); // logical and
 	function expr7() return this.recurseLeftOp(this.expr8, ["^^"], ["xor"]); // binary xor
 	function expr8() return this.recurseLeftOp(this.expr9, ["==", "!="], ["eq", "neq"]);
 	function expr9() return this.recurseLeftOp(this.expr10, [">", "<", ">=", "<="], ["gt", "lt", "geq", "leq"]);

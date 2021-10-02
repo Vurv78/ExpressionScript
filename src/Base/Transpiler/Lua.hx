@@ -15,14 +15,14 @@ var IN_SWITCH: Bool = false;
 
 @:keep
 class Instructions {
-	static function root(instrs: Array<Instruction>) {
+	static function instr_root(instrs: Array<Instruction>) {
 		var out = [];
 		for (instr in instrs)
 			out.push( callInstruction(instr.name, instr.args) );
 		return out.join('\n\n').replaceAll("\t\n", '');
 	}
 
-	static function call(name: String, kvargs: Map<Dynamic, Instruction>, iargs: Array<Instruction>) {
+	static function instr_call(name: String, kvargs: Map<Dynamic, Instruction>, iargs: Array<Instruction>) {
 		var args = [];
 		if (iargs != null) {
 			// Function was called with arguments
@@ -35,13 +35,13 @@ class Instructions {
 		return '$name()';
 	}
 
-	static function methodcall(meta_fname: String, meta_obj: Instruction, iargs: Array<Instruction>)
+	static function instr_methodcall(meta_fname: String, meta_obj: Instruction, iargs: Array<Instruction>)
 		return '${ callInline(meta_obj) }:$meta_fname(${ (iargs!=null) ? iargs.map(x -> callInline(x)).join(", ") : '' })';
 
-	static function literal(value: E2Type, raw: String)
+	static function instr_literal(value: E2Type, raw: String)
 		return raw;
 
-	static function _if(cond: Instruction, block: Instruction, is_elseif: Bool, ifeif: Instruction) {
+	static function instr_if(cond: Instruction, block: Instruction, is_elseif: Bool, ifeif: Instruction) {
 		if (is_elseif) {
 			return 'is_elseif';
 		}
@@ -68,7 +68,7 @@ class Instructions {
 		'end [${ ifeif != null ? callBlock(ifeif, false) : "" }]';*/
 	}
 
-	static function _for(varname: String, start: Instruction, end: Instruction, ?inc: Instruction, block: Instruction) {
+	static function instr_for(varname: String, start: Instruction, end: Instruction, ?inc: Instruction, block: Instruction) {
 		final startv = callInline(start);
 		final endv = callInline(end);
 
@@ -80,14 +80,14 @@ class Instructions {
 		+ 'end';
 	}
 
-	static function foreach(keyname: String, ?keytype: String, valname: String, valtype: String, tblexpr: Instruction, block: Instruction) {
+	static function instr_foreach(keyname: String, ?keytype: String, valname: String, valtype: String, tblexpr: Instruction, block: Instruction) {
 		return 'for $keyname, $valname in pairs(${ callInline(tblexpr) }) do\n' +
 			'\t${callBlock(block, true)}\n' +
 			'\t::continue::\n' +
 		'end';
 	}
 
-	static function _while(cond: Instruction, block: Instruction, is_dowhile: Bool) {
+	static function instr_while(cond: Instruction, block: Instruction, is_dowhile: Bool) {
 		if (is_dowhile) {
 			// Not using a repeat until
 			return 'while true do\n' +
@@ -102,10 +102,10 @@ class Instructions {
 		'end';
 	}
 
-	static function variable(name: String)
+	static function instr_variable(name: String)
 		return name;
 
-	static function _switch(topexpr: Instruction, cases: Array<{?match: Instruction, block: Instruction}>) {
+	static function instr_switch(topexpr: Instruction, cases: Array<{?match: Instruction, block: Instruction}>) {
 		IN_SWITCH = true;
 		var topvar = callInline(topexpr);
 
@@ -126,65 +126,73 @@ class Instructions {
 		return out;
 	}
 
-	static function _break()
+	static function instr_break()
 		return IN_SWITCH ? '' : "break";
 
-	static function _continue()
+	static function instr_continue()
 		return 'goto continue';
 
-	static function _return(val: Instruction)
+	static function instr_return(val: Instruction)
 		return 'return ${ callInline(val) }';
 
-	static function increment(varname: String)
+	static function instr_increment(varname: String)
 		return '$varname = $varname + 1';
 
-	static function decrement(varname: String)
+	static function instr_decrement(varname: String)
 		return '$varname = $varname - 1';
 
-	static function add(v: Instruction, addend: Instruction)
+	static function instr_add(v: Instruction, addend: Instruction)
 		return '${ callInline(v) } + ${ callInline(addend) }';
 
-	static function sub(v: Instruction, addend: Instruction)
+	static function instr_sub(v: Instruction, addend: Instruction)
 		return '${ callInline(v) } - ${ callInline(addend) }';
 
-	static function div(v: Instruction, addend: Instruction)
+	static function instr_div(v: Instruction, addend: Instruction)
 		return '${ callInline(v) } / ${ callInline(addend) }';
 
-	static function mul(v: Instruction, addend: Instruction)
+	static function instr_mul(v: Instruction, addend: Instruction)
 		return '${ callInline(v) } * ${ callInline(addend) }';
 
-	static function assign(varname: String, to: Instruction)
-		return '$varname = ${ callInline(to) }';
-
-	static function eq(v1: Instruction, v2: Instruction)
+	static function instr_eq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } == ${ callInline(v2) }';
 
-	static function neq(v1: Instruction, v2: Instruction)
+	static function instr_neq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } ~= ${ callInline(v2) }';
 
-	static function leq(v1: Instruction, v2: Instruction)
+	static function instr_leq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } <= ${ callInline(v2) }';
 
-	static function geq(v1: Instruction, v2: Instruction)
+	static function instr_geq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } >= ${ callInline(v2) }';
 
-	static function grouped_equation(v1: Instruction)
+	static function instr_grouped_equation(v1: Instruction)
 		return '(${ callInline(v1) })';
 
-	static function assignlocal(varname: String, to: Instruction)
+	static function instr_assign(varname: String, to: Instruction)
+		return '$varname = ${ callInline(to) }';
+
+	static function instr_assignlocal(varname: String, to: Instruction)
 		return 'local $varname = ${ callInline(to) }';
 
-	static function function_decl(name: String, ret_type: String, meta_type: String, sig: String, args: Array<{name: String, type: String}>, decl: Instruction) {
+	static function instr_fndecl(name: String, ret_type: String, meta_type: String, sig: String, args: Array<{name: String, type: String}>, decl: Instruction) {
 		return 'function ${(meta_type != null) ? '${meta_type}_' : ''}$name(${ args.map( (v) -> v.name ).join(", ") })\n' +
 			'\t${ callBlock(decl, true) }\n' +
 		'end';
 	}
 
-	static function ternary(cond: Instruction, success: Instruction, fallback: Instruction)
+	static function instr_ternary(cond: Instruction, success: Instruction, fallback: Instruction)
 		return '${ callInline(cond) } and ${ callInline(success) } or ${ callInline(fallback) }';
 
+	static function instr_try(block: Instruction, var_name: String, catch_block: Instruction) {
+		return 'xpcall(function()\n' +
+			'\t${ callBlock(block, true) }\n' +
+		'end, function($var_name)\n' +
+			'\t${ callBlock(catch_block, true) }\n' +
+		'end)';
+	}
+
 	// Bitwise ops
-	static function bor(v1: Instruction, v2: Instruction) {
+	static function instr_bor(v1: Instruction, v2: Instruction) {
 		#if LUA54
 			return '${ callInline(v1) } | ${ callInline(v2) }';
 		#else
@@ -195,6 +203,8 @@ class Instructions {
 
 // Expr -> Lua
 function callInstruction(name: String, args: Array<Dynamic>): String {
+	var name = 'instr_' + name;
+
 	if(!Reflect.hasField(Instructions, name))
 		throw new NotImplementedException('Instruction ["$name"] does not exist.');
 

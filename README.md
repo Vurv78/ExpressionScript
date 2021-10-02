@@ -18,11 +18,6 @@ Normal is a type that came before ``number``, however nobody uses it and it just
 
 ### No inputs
 For obvious reasons, there's no io or entities in this as this is meant to be run in the browser, or simply on your pc.
-
-### Fixed bitwise operators
-E2 randomly swapped || and | / & and &&. && was made into bitwise and rather than logical and.  
-*It has been switched to match typical language spec.  *
-
 ### Optimized
 The language is optimized for speed. E2 was known to be very slow, and this is no longer the case through typing and other optimizations.  
 *Although, admittedly Haxe is nowhere near the best language for trying to get something to be fast.
