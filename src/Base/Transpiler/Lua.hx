@@ -140,6 +140,15 @@ class Instructions {
 	static function instr_not(v: Instruction)
 		return 'not ${ callInline(v) }';
 
+	static function instr_and(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } and ${ callInline(v2) }';
+
+	static function instr_or(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } or ${ callInline(v2) }';
+
+	static function instr_mod(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } % ${ callInline(v2) }';
+
 	static function instr_add(v: Instruction, addend: Instruction)
 		return '${ callInline(v) } + ${ callInline(addend) }';
 
@@ -163,6 +172,14 @@ class Instructions {
 
 	static function instr_geq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } >= ${ callInline(v2) }';
+
+	// Greater than
+	static function instr_gt(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } > ${ callInline(v2) }';
+
+	// Less than
+	static function instr_lt(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } < ${ callInline(v2) }';
 
 	static function instr_grouped_equation(v1: Instruction)
 		return '(${ callInline(v1) })';
@@ -198,6 +215,18 @@ class Instructions {
 
 	static function instr_index_set(tbl: Instruction, key: Instruction, value: Instruction, type: Null<String>)
 		return '${ callInline(tbl) }[${ callInline(key) }] = ${ callInline(value) }';
+
+	static function instr_kvtable(kvmap: Map<Instruction, Instruction>, imap: Array<Instruction>) {
+		var kvargs = [ for (k => v in kvmap.keyValueIterator()) '[${ callInline(k) }] = ${ callInline(v) }' ];
+
+		return '{\n' +
+			'\t${ kvargs.join(",\n\t") }\n' +
+			'\t${ imap.map( (x) -> callInline(x) ).join(",\n\t") }\n' +
+		'}';
+	}
+
+	static function instr_kvarray()
+		return 'todo!';
 
 	// Bitwise ops
 	static function instr_bor(v1: Instruction, v2: Instruction) {

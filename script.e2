@@ -46,3 +46,15 @@ T = table()
 T[1, vector] = vec()
 
 print( T[1, vector] )
+
+local Tbl = table(
+    "width" = Width,
+    "height" = Height,
+    "done" = 0,
+    "output" = table(),
+    "png" = 1,
+    "type" = Type,
+
+    "crc" = 0,
+    "adler" = 1
+)

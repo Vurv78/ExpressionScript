@@ -454,13 +454,8 @@ class Parser {
 		var type = "number";
 
 		var name = this.getTokenRaw();
-
 		if (name == null)
 			this.error("Variable required");
-
-		var first_char = name.charAt(0);
-		if (first_char != first_char.toUpperCase())
-			this.error("Variable must start with uppercased letter");
 
 		if (used_vars.exists(name))
 			this.error('Variable \'$name\' is already used as an argument,');
@@ -486,15 +481,11 @@ class Parser {
 		if (this.hasTokens()) {
 			var vars: Array<String> = [];
 			while (true) {
-				if (this.acceptRoamingToken("lower_ident") || this.acceptRoamingToken("ident")) {
+				if (this.acceptRoamingToken("ident")) {
 					var name = this.getTokenRaw();
 
 					if (name == null)
 						this.error("Variable required");
-
-					var first_char = name.charAt(0);
-					if ( first_char != first_char.toUpperCase() )
-						this.error("Variable must start with uppercased letter");
 
 					if ( used_vars.exists(name) )
 						this.error('Variable \'$name\' is already used as an argument');
@@ -620,7 +611,7 @@ class Parser {
 
 				keytype = this.getTokenRaw();
 
-				var typ = wire_expression_types.get(keytype.toUpperCase());
+				var typ = wire_expression_types.get(keytype);
 				if (typ == null)
 					this.error('Unknown type: $keytype');
 
@@ -889,7 +880,6 @@ class Parser {
 			var first_char = name.charAt(0);
 			if (first_char != first_char.toLowerCase())
 				this.error("Function name must start with a lower case letter", name_token);
-
 
 			if ( !this.acceptRoamingToken("grammar", "(") )
 				this.error("Left parenthesis (() must appear after function name");

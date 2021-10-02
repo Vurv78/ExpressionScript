@@ -138,13 +138,13 @@ class Tokenizer {
 
 			new TokenMatch( "grammar", ~/{|}|,|;|:|\(|\)|\[|\]/, TokenType.Grammar),
 
-			new TokenMatch( "keyword", ~/elseif|if|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return|do/, TokenType.Keyword ),
+			new TokenMatch( "keyword", ~/\belseif|if|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return|do\b/, TokenType.Keyword ),
 
 			new TokenMatch( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
 				token.literal = E2Type.String( pattern.matched(0) );
 			}),
 
-			new TokenMatch( "number", ~/-?(\d*\.)?\d+/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
+			new TokenMatch( "number", ~/-?(0[xX][0-9a-fA-F]+)|(-?(\d*\.)?\d+)/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
 				// In the future make this allow for rust strings etc
 				var value = Std.parseFloat( pattern.matched(0) );
 				if (Math.isNaN(value))

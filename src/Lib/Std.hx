@@ -26,6 +26,9 @@ final types: Map<String, E2TypeDef> = [
 	}, // temporary.
 	"vector2" => {
 		id: "vector2"
+	},
+	"vector4" => {
+		id: "vector4"
 	}
 ];
 
