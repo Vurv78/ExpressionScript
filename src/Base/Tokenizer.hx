@@ -1,5 +1,6 @@
 package base;
 
+import lib.Std.types as wire_expression_types;
 import haxe.exceptions.NotImplementedException;
 import haxe.ValueException;
 import lib.Type.E2Type;
@@ -92,6 +93,7 @@ class Token {
 	public var line: Int;
 	public var char: Int;
 	public var whitespaced: Bool; // Whether the token was preceeded by whitespace.
+	public var properties: Map<String, Bool>;
 
 	public function new( pos: Int, len: Int, raw: String, id: String, flag: TokenFlag, tt: TokenType ) {
 		this.start = pos;
@@ -108,6 +110,7 @@ class Token {
 		this.line = 1; // Will be assigned after
 
 		this.literal = E2Type.Void;
+		this.properties = [];
 	}
 
 	public static function from( result: {pos: Int, len: Int}, raw: String, matcher: TokenMatch ): Token {
@@ -123,7 +126,7 @@ class Token {
 
 	// Debugging
 	function toString() {
-		return 'Token [pos: {${this.start}, ${this.end}}, tt: ${this.tt}, raw: "${this.raw}", id: ${this.id}, line: ${this.line}, whitespaced: ${this.whitespaced}, literal: ${this.literal}]';
+		return 'Token [tt: ${this.tt}, raw: "${this.raw}", id: ${this.id}, %s: ${this.whitespaced}, literal: ${this.literal}]';
 	}
 }
 
@@ -138,7 +141,7 @@ class Tokenizer {
 			new TokenMatch( "keyword", ~/elseif|if|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return|do/, TokenType.Keyword ),
 
 			new TokenMatch( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
-				return E2Type.String( pattern.matched(0) );
+				token.literal = E2Type.String( pattern.matched(0) );
 			}),
 
 			new TokenMatch( "number", ~/-?(\d*\.)?\d+/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
@@ -160,9 +163,22 @@ class Tokenizer {
 				token.tt = TokenType.Literal;
 				token.raw = "1000";
 			}),
-			new TokenMatch( "identifier", ~/[A-Z]\w*/, TokenType.Identifier ), // Variable name.
-			new TokenMatch( "func_name", ~/[a-z]\w*/, TokenType.Identifier ),
-			new TokenMatch( "type", ~/[a-z]+/, TokenType.Type ),
+
+			// Used for both functions and types. Hopefully would be merged into "ident" in the future.
+			new TokenMatch( "lower_ident", ~/[a-z]\w*/, TokenType.Identifier, TokenFlag.None, function(token, pattern) {
+				final match = pattern.matched(0);
+
+				if (match.isLowerCase()) {
+					if ( wire_expression_types.exists( match ) ) {
+						token.properties.set("type", true);
+					}
+					token.properties.set("lowercase", true);
+				} else {
+					token.properties.set("lowercase", false);
+				}
+			}),
+
+			new TokenMatch( "ident", ~/[A-Z]\w*/, TokenType.Identifier ), // Variable name.
 			new TokenMatch( "operator", ~/==|!=|\*=|\+=|-=|\/=|%=|<<|>>|&&|\|{2}|\+{2}|->|>=|<=|\^{2}|\?:|<|>|\+|-|\*|\/|=|!|~|\$|~|\?|%|\||\^|&|:/, TokenType.Operator )
 		];
 	}
@@ -177,7 +193,6 @@ class Tokenizer {
 		do {
 			did_match = false;
 			for (tokenizer in this.token_matchers) {
-				final name = tokenizer.id;
 				final token = tokenizer.match(script, pointer);
 				if ( token != null ) {
 					pointer = token.end;

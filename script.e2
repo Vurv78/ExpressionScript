@@ -41,3 +41,8 @@ try {
 } catch(Err) {
 	print(Err)
 }
+
+T = table()
+T[1, vector] = vec()
+
+print( T[1, vector] )

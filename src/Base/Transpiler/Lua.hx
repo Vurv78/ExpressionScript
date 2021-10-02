@@ -42,17 +42,15 @@ class Instructions {
 		return raw;
 
 	static function instr_if(cond: Instruction, block: Instruction, ifeifs: Array<Instruction>, is_else: Bool) {
-
 		if (ifeifs != null) {
 			// Top If
-			var code = 'if ${ callInline(cond) } then\n' +
-						'\t${ callBlock(block, true) }\n';
-			for (ifeif in ifeifs) {
-				code += callInline(ifeif);
-			}
-			return code + 'end';
+			return 'if ${ callInline(cond) } then\n' +
+				'\t${ callBlock(block, true) }\n' +
+				ifeifs.map(x -> callInline(x)).join('') +
+			"end";
 		} else {
 			if (is_else) {
+				// Chain final else
 				return 'else\n' +
 					'\t${ callBlock(block,true) }\n';
 			} else {
@@ -70,14 +68,14 @@ class Instructions {
 
 		return 'for $varname = $startv, $endv, $incby do\n'
 			+ '\t${ callBlock(block, true) }\n'
-			+ '\t::continue::\n'
+			+ '\t::_continue_::\n'
 		+ 'end';
 	}
 
 	static function instr_foreach(keyname: String, ?keytype: String, valname: String, valtype: String, tblexpr: Instruction, block: Instruction) {
 		return 'for $keyname, $valname in pairs(${ callInline(tblexpr) }) do\n' +
 			'\t${callBlock(block, true)}\n' +
-			'\t::continue::\n' +
+			'\t::_continue_::\n' +
 		'end';
 	}
 
@@ -87,12 +85,13 @@ class Instructions {
 			return 'while true do\n' +
 				'\t${ callBlock(block, true) }' +
 				'\tif not cond then break end\n' +
+				'\t::_continue_::\n' + // This might have to go on the line above.
 			'end';
 		}
 
 		return 'while ${ callInline(cond) } do\n' +
 			'\t${ callBlock(block, true) }\n' +
-			'\t::continue::\n' +
+			'\t::_continue_::\n' +
 		'end';
 	}
 
@@ -124,7 +123,7 @@ class Instructions {
 		return IN_SWITCH ? '' : "break";
 
 	static function instr_continue()
-		return 'goto continue';
+		return 'goto _continue_';
 
 	static function instr_return(val: Instruction)
 		return 'return ${ callInline(val) }';
@@ -134,6 +133,12 @@ class Instructions {
 
 	static function instr_decrement(varname: String)
 		return '$varname = $varname - 1';
+
+	static function instr_neg(v: Instruction)
+		return '-${ callInline(v) }';
+
+	static function instr_not(v: Instruction)
+		return 'not ${ callInline(v) }';
 
 	static function instr_add(v: Instruction, addend: Instruction)
 		return '${ callInline(v) } + ${ callInline(addend) }';
@@ -185,9 +190,14 @@ class Instructions {
 		'end)';
 	}
 
-	static function instr_stringcall(name:Instruction, args: Array<Instruction>, ret_type: Null<String>) {
+	static function instr_stringcall(name:Instruction, args: Array<Instruction>, ret_type: Null<String>)
 		return '_G[${ callInline(name) }](${ args.map( (x) -> callInline(x) ).join(", ") })';
-	}
+
+	static function instr_index_get(tbl: Instruction, key: Instruction, type: Null<String>)
+		return '${ callInline(tbl) }[${ callInline(key) }]';
+
+	static function instr_index_set(tbl: Instruction, key: Instruction, value: Instruction, type: Null<String>)
+		return '${ callInline(tbl) }[${ callInline(key) }] = ${ callInline(value) }';
 
 	// Bitwise ops
 	static function instr_bor(v1: Instruction, v2: Instruction) {
