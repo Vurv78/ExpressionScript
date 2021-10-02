@@ -41,31 +41,25 @@ class Instructions {
 	static function instr_literal(value: E2Type, raw: String)
 		return raw;
 
-	static function instr_if(cond: Instruction, block: Instruction, is_elseif: Bool, ifeif: Instruction) {
-		if (is_elseif) {
-			return 'is_elseif';
+	static function instr_if(cond: Instruction, block: Instruction, ifeifs: Array<Instruction>, is_else: Bool) {
+
+		if (ifeifs != null) {
+			// Top If
+			var code = 'if ${ callInline(cond) } then\n' +
+						'\t${ callBlock(block, true) }\n';
+			for (ifeif in ifeifs) {
+				code += callInline(ifeif);
+			}
+			return code + 'end';
+		} else {
+			if (is_else) {
+				return 'else\n' +
+					'\t${ callBlock(block,true) }\n';
+			} else {
+				return 'elseif ${ callInline(cond) } then\n' +
+					'\t${ callBlock(block,true) }\n';
+			}
 		}
-
-		if( ifeif == null ) {
-			return 'ifeif is null; $block $cond';
-		}
-
-		if ( block == null ) {
-			return 'block is null';
-		}
-
-		return 'if ${ callInline(cond) } then\n' +
-			'\t${ callBlock(block, true) }\n' +
-		'end';
-
-		/*return 'if ${ callInline(cond) } then\n' +
-			'\t$block\n' +
-			'\t${ callBlock(ifeif, true) }\n' +
-		(is_elseif ? '<iselseif>' : 'end');*/
-
-		/*return build +
-			'\t${ callBlock(block, true) }\n' +
-		'end [${ ifeif != null ? callBlock(ifeif, false) : "" }]';*/
 	}
 
 	static function instr_for(varname: String, start: Instruction, end: Instruction, ?inc: Instruction, block: Instruction) {
@@ -189,6 +183,10 @@ class Instructions {
 		'end, function($var_name)\n' +
 			'\t${ callBlock(catch_block, true) }\n' +
 		'end)';
+	}
+
+	static function instr_stringcall(name:Instruction, args: Array<Instruction>, ret_type: Null<String>) {
+		return '_G[${ callInline(name) }](${ args.map( (x) -> callInline(x) ).join(", ") })';
 	}
 
 	// Bitwise ops

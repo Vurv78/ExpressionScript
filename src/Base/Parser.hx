@@ -322,17 +322,31 @@ class Parser {
 		return null;
 	}
 
-	function acceptIfElseIf() {
-		if (this.acceptRoamingToken("keyword", "elseif"))
-			return this.instruction( this.getTokenTrace(), "if", [this.acceptCondition(), this.acceptBlock("else if condition"), true, this.acceptIfElseIf()] );
+	function acceptIfElseIf(): Array<Instruction> {
+		var args = [];
+		while (true) {
+			if (this.acceptRoamingToken("keyword", "elseif")) {
+				args.push(
+					this.instruction(this.getTokenTrace(), "if", [this.acceptCondition(), this.acceptBlock("elseif condition"), null, false])
+				);
+			} else if(this.acceptRoamingToken("keyword", "else")) {
+				args.push(
+					this.instruction(this.getTokenTrace(), "if", [null, this.acceptBlock("else"), null, true])
+				);
+				break;
+			} else {
+				break;
+			}
+		}
 
-		return this.acceptIfElse();
+		return args;
 	}
 
 	function acceptIfElse() {
 		if (this.acceptRoamingToken("keyword", "else"))
 			return this.acceptBlock("else");
 
+		trace("root?");
 		return this.instruction( this.getTokenTrace(), "root", [] );
 	}
 
@@ -523,7 +537,7 @@ class Parser {
 	function stmt1() {
 		if (this.acceptRoamingToken("keyword", "if")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "if", [this.acceptCondition(), this.acceptBlock("if condition"), false, this.acceptIfElseIf()] );
+			return this.instruction( trace, "if", [this.acceptCondition(), this.acceptBlock("if condition"), this.acceptIfElseIf(), false] );
 		}
 		return this.stmt2();
 	}
@@ -1136,7 +1150,7 @@ class Parser {
 
 					expr = this.instruction( trace, "stringcall", [expr, exprs, stype] );
 				} else {
-					expr = this.instruction( trace, "stringcall", [expr, exprs, ""] );
+					expr = this.instruction( trace, "stringcall", [expr, exprs, null] );
 				}
 			} else {
 				break;
