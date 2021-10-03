@@ -54,7 +54,7 @@ class TokenMatch {
 	public final tt: TokenType;
 	final processor: Null<(token: Token, pattern: EReg)->Void>;
 
-	public function new(identifier: String, pattern: EReg, tt: TokenType, ?flag: TokenFlag, ?processor: (token: Token, pattern: EReg)->Void ) {
+	public function new(identifier: String, pattern: EReg, tt: TokenType, ?flag: TokenFlag = TokenFlag.None, ?processor: (token: Token, pattern: EReg)->Void ) {
 		this.id = identifier;
 		this.tt = tt;
 		this.flag = flag;
@@ -95,7 +95,7 @@ class Token {
 	public var whitespaced: Bool; // Whether the token was preceeded by whitespace.
 	public var properties: Map<String, Bool>;
 
-	public function new( pos: Int, len: Int, raw: String, id: String, flag: TokenFlag, tt: TokenType ) {
+	public function new( pos: Int, len: Int, raw: String, id: String, flag: TokenFlag = TokenFlag.None, tt: TokenType = TokenType.Invalid ) {
 		this.start = pos;
 		this.end = pos + len;
 		this.len = len;

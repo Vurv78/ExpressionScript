@@ -1,8 +1,8 @@
 package base;
 
 import haxe.exceptions.NotImplementedException;
-import base.Parser.Instruction;
 import lib.Type.E2Type;
+using lib.Instructions;
 
 using Iterators;
 using Safety;

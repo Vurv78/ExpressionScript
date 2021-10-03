@@ -11,3 +11,9 @@ class ParseError extends haxe.Exception {}
 
 // Compile error
 class CompileError extends haxe.Exception {}
+
+// Generic traceback
+typedef Trace = {
+	line: Int,
+	char: Int
+}

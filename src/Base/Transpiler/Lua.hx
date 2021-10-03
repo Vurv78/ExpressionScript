@@ -1,12 +1,9 @@
 package base.transpiler;
 
-import haxe.ds.Vector;
-import haxe.Int32;
-import sys.io.File;
 import lib.Type.E2Type;
 import haxe.exceptions.NotImplementedException;
-import base.Parser.Instruction;
 
+using lib.Instructions;
 using hx.strings.Strings;
 using Safety;
 
@@ -15,10 +12,10 @@ var IN_SWITCH: Bool = false;
 
 @:keep
 class Instructions {
-	static function instr_root(instrs: Array<Instruction>) {
+	static public function instr_root(instrs: Array<Instruction>) {
 		var out = [];
 		for (instr in instrs)
-			out.push( callInstruction(instr.name, instr.args) );
+			out.push( callInstruction(instr.id, instr.args) );
 		return out.join('\n\n').replaceAll("\t\n", '');
 	}
 
@@ -95,7 +92,7 @@ class Instructions {
 		'end';
 	}
 
-	static function instr_variable(name: String)
+	static function instr_var(name: String)
 		return name;
 
 	static function instr_switch(topexpr: Instruction, cases: Array<{?match: Instruction, block: Instruction}>) {
@@ -128,15 +125,6 @@ class Instructions {
 	static function instr_return(val: Instruction)
 		return 'return ${ callInline(val) }';
 
-	static function instr_increment(varname: String)
-		return '$varname = $varname + 1';
-
-	static function instr_decrement(varname: String)
-		return '$varname = $varname - 1';
-
-	static function instr_neg(v: Instruction)
-		return '-${ callInline(v) }';
-
 	static function instr_not(v: Instruction)
 		return 'not ${ callInline(v) }';
 
@@ -146,51 +134,65 @@ class Instructions {
 	static function instr_or(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } or ${ callInline(v2) }';
 
+	// Math ops
+
+	static function instr_increment(varname: String)
+		return '$varname = $varname + 1';
+
+	static function instr_decrement(varname: String)
+		return '$varname = $varname - 1';
+
+	static function instr_negative(v: Instruction)
+		return '-${ callInline(v) }';
+
 	static function instr_mod(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } % ${ callInline(v2) }';
 
-	static function instr_add(v: Instruction, addend: Instruction)
-		return '${ callInline(v) } + ${ callInline(addend) }';
+	static function instr_add(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } + ${ callInline(v2) }';
 
-	static function instr_sub(v: Instruction, addend: Instruction)
-		return '${ callInline(v) } - ${ callInline(addend) }';
+	static function instr_sub(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } - ${ callInline(v2) }';
 
-	static function instr_div(v: Instruction, addend: Instruction)
-		return '${ callInline(v) } / ${ callInline(addend) }';
+	static function instr_div(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } / ${ callInline(v2) }';
 
-	static function instr_mul(v: Instruction, addend: Instruction)
-		return '${ callInline(v) } * ${ callInline(addend) }';
+	static function instr_mul(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } * ${ callInline(v2) }';
 
-	static function instr_eq(v1: Instruction, v2: Instruction)
+	static function instr_exp(v1: Instruction, v2: Instruction)
+		return '${ callInline(v1) } ^ ${ callInline(v2) }';
+
+	// Eq ops
+
+	static function instr_equal(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } == ${ callInline(v2) }';
 
-	static function instr_neq(v1: Instruction, v2: Instruction)
+	static function instr_notequal(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } ~= ${ callInline(v2) }';
 
-	static function instr_leq(v1: Instruction, v2: Instruction)
+	static function instr_lessthaneq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } <= ${ callInline(v2) }';
 
-	static function instr_geq(v1: Instruction, v2: Instruction)
+	static function instr_greaterthaneq(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } >= ${ callInline(v2) }';
 
-	// Greater than
-	static function instr_gt(v1: Instruction, v2: Instruction)
+	static function instr_greaterthan(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } > ${ callInline(v2) }';
 
-	// Less than
-	static function instr_lt(v1: Instruction, v2: Instruction)
+	static function instr_lessthan(v1: Instruction, v2: Instruction)
 		return '${ callInline(v1) } < ${ callInline(v2) }';
 
-	static function instr_grouped_equation(v1: Instruction)
+	static function instr_groupedequation(v1: Instruction)
 		return '(${ callInline(v1) })';
 
 	static function instr_assign(varname: String, to: Instruction)
 		return '$varname = ${ callInline(to) }';
 
-	static function instr_assignlocal(varname: String, to: Instruction)
+	static function instr_lassign(varname: String, to: Instruction)
 		return 'local $varname = ${ callInline(to) }';
 
-	static function instr_fndecl(name: String, ret_type: String, meta_type: String, sig: String, args: Array<{name: String, type: String}>, decl: Instruction) {
+	static function instr_function(name: String, ret_type: String, meta_type: String, sig: String, args: Array<{name: String, type: String}>, decl: Instruction) {
 		return 'function ${(meta_type != null) ? '${meta_type}_' : ''}$name(${ args.map( (v) -> v.name ).join(", ") })\n' +
 			'\t${ callBlock(decl, true) }\n' +
 		'end';
@@ -210,10 +212,10 @@ class Instructions {
 	static function instr_stringcall(name:Instruction, args: Array<Instruction>, ret_type: Null<String>)
 		return '_G[${ callInline(name) }](${ args.map( (x) -> callInline(x) ).join(", ") })';
 
-	static function instr_index_get(tbl: Instruction, key: Instruction, type: Null<String>)
+	static function instr_indexget(tbl: Instruction, key: Instruction, type: Null<String>)
 		return '${ callInline(tbl) }[${ callInline(key) }]';
 
-	static function instr_index_set(tbl: Instruction, key: Instruction, value: Instruction, type: Null<String>)
+	static function instr_indexset(tbl: Instruction, key: Instruction, value: Instruction, type: Null<String>)
 		return '${ callInline(tbl) }[${ callInline(key) }] = ${ callInline(value) }';
 
 	static function instr_kvtable(kvmap: Map<Instruction, Instruction>, imap: Array<Instruction>) {
@@ -225,8 +227,30 @@ class Instructions {
 		'}';
 	}
 
-	static function instr_kvarray()
-		return 'todo!';
+	static function instr_kvarray(kvmap: Map<Instruction, Instruction>, imap: Array<Instruction>) {
+		var kvargs = [ for (k => v in kvmap.keyValueIterator()) '[${ callInline(k) }] = ${ callInline(v) }' ];
+
+		return '{\n' +
+			'\t${ kvargs.join(",\n\t") }\n' +
+			'\t${ imap.map( (x) -> callInline(x) ).join(",\n\t") }\n' +
+		'}';
+	}
+
+	static function instr_ternarydefault(val: Instruction, els: Instruction)
+		return '${ callInline(val) } or ${ callInline(els) }';
+
+	static function instr_include()
+		return "error('Not implemented in the parser.')";
+
+	// TODO: there should be a system for these three
+	static function instr_triggered(varname: String)
+		return "false";
+
+	static function instr_delta(varname: String)
+		return "false";
+
+	static function instr_connected(varname: String)
+		return "false";
 
 	// Bitwise ops
 	static function instr_bor(v1: Instruction, v2: Instruction) {
@@ -236,24 +260,56 @@ class Instructions {
 			return 'bit.bor(${ callInline(v1) }, ${ callInline(v2) })';
 		#end
 	}
+
+	static function instr_band(v1: Instruction, v2: Instruction) {
+		#if LUA54
+			return '${ callInline(v1) } & ${ callInline(v2) }';
+		#else
+			return 'bit.band(${ callInline(v1) }, ${ callInline(v2) })';
+		#end
+	}
+
+	static function instr_bxor(v1: Instruction, v2: Instruction) {
+		#if LUA54
+			return '${ callInline(v1) } ~ ${ callInline(v2) }';
+		#else
+			return 'bit.bxor(${ callInline(v1) }, ${ callInline(v2) })';
+		#end
+	}
+
+	static function instr_bshr(v1: Instruction, v2: Instruction) {
+		#if LUA54
+			return '${ callInline(v1) } >> ${ callInline(v2) }';
+		#else
+			return 'bit.rshift(${ callInline(v1) }, ${ callInline(v2) })';
+		#end
+	}
+
+	static function instr_bshl(v1: Instruction, v2: Instruction) {
+		#if LUA54
+			return '${ callInline(v1) } << ${ callInline(v2) }';
+		#else
+			return 'bit.lshift(${ callInline(v1) }, ${ callInline(v2) })';
+		#end
+	}
 }
 
 // Expr -> Lua
-function callInstruction(name: String, args: Array<Dynamic>): String {
-	var name = 'instr_' + name;
-
-	if(!Reflect.hasField(Instructions, name))
-		throw new NotImplementedException('Instruction ["$name"] does not exist.');
+@:nullSafety(Strict)
+function callInstruction(id: Instr, args: Array<Dynamic>): String {
+	var name = 'instr_${Type.enumConstructor(id).toLowerCase()}';
+	if (!Reflect.hasField(Instructions, name))
+		throw new NotImplementedException('Unknown instruction: $name');
 
 	return Reflect.callMethod(Instructions, Reflect.field(Instructions, name), args);
 }
 
 inline function callInline(instr: Instruction) {
-	return callInstruction(instr.name, instr.args);
+	return callInstruction(instr.id, instr.args);
 }
 
 inline function callBlock(instr: Instruction, indent: Bool) {
-	var out = callInstruction(instr.name, [instr.args]);
+	var out = callInstruction(instr.id, [instr.args]);
 	if (indent) return out.replaceAll('\n', "\n\t");
 	return out;
 }

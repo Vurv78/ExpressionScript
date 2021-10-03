@@ -24,15 +24,15 @@ The language is optimized for speed. E2 was known to be very slow, and this is n
 
 ## General State
 Here's a general status of each part of the language.
-| Name | Status | Desc |
-| ---  | ---    |  ---  |
-| Preprocessor | 🚧 | Unfinished |
-| Tokenizer | ✔️| Tokenizer should be completely finished. Some operators and grammar might be missing that I'm unaware of. |
-| Parser | 🚧🏗️ | It is nearly done, however some things like #include are missing, and some statements/expressions might be buggy. |
-| Optimizer | ❌ | Hasn't been started and there are no plans for this yet. |
-| Compiler| 🚧 | Unfinished. |
-| Transpiler| 🚧🏗️ | Unfinished. |
-| Tests| 🚧 | Unfinished. |
+| Name | Status |              Desc |
+| ---  | ---    |              ---  |
+| Preprocessor | 🚧    | No support for directives (I mean what would they do?). Of course they alongside comments are stripped out of code. Missing #ifdef, etc. |
+| Tokenizer    | ✔️    | Tokenizer should be completely finished. Some operators and grammar might be missing that I'm unaware of. |
+| Parser       | 🚧🏗️ | It is nearly done, however some things like #include are missing, and some statements/expressions might be buggy. |
+| Optimizer    | ❌    | Hasn't been started and there are no plans for this yet. |
+| Compiler     | 🚧    | Unfinished. |
+| (Lua) Transpiler   | ✔️🏗️ | Mostly done. |
+| Tests        | ✔️    | Unfinished. |
 
 ## Running Tests
 Tests are using the [utest](https://github.com/haxe-utest/utest) library.  

@@ -4,7 +4,7 @@ import utest.ui.Report;
 function main() {
 	var runner = new Runner();
 
-	runner.addCases("tests.utest", false);
+	runner.addCases("utests", false);
 
 	var report = Report.create(runner);
 

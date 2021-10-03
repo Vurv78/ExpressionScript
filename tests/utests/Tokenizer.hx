@@ -1,4 +1,4 @@
-package tests.utest;
+package utests;
 
 import utest.Assert;
 import utest.Test;
@@ -22,6 +22,7 @@ class Tokenizer extends Test {
 	 */
 	public function testLiteralNumber() {
 		final tokens = this.tokenizer.process(this.script);
-		Assert.equals( E2Type.Number(212), tokens[2].literal );
+
+		Assert.same( E2Type.Number(212), tokens[2].literal );
 	}
 }

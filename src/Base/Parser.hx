@@ -1,11 +1,9 @@
 package base;
-
-import haxe.ds.Option;
 import haxe.ds.StringMap;
-import haxe.macro.Expr;
 
 using Safety;
 using lib.Error;
+using lib.Instructions;
 
 import lib.Std.types as wire_expression_types;
 
@@ -45,19 +43,7 @@ Expr18 ← !(Var "++") !(Var "--") Expr19
 Expr19 ← Var
 */
 
-typedef SException = haxe.Exception;
 typedef FunctionParams = Array<{name: String, type: String}>;
-
-typedef Trace = {
-	line: Int,
-	char: Int
-}
-
-typedef Instruction = {
-	name: String,
-	trace: Trace,
-	args: Array<Dynamic> // Arguments to be passed to the compiler.
-}
 
 class Parser {
 	// Immutable
@@ -132,8 +118,9 @@ class Parser {
 		return { line: this.token.line, char: this.token.char };
 	}
 
-	function instruction(tr: Trace, name: String, args: Array<Dynamic>): Instruction {
-		return { trace: tr, name: name, args: args };
+	@:nullSafety(Strict)
+	function instruction(tr: Trace, id: Instr, args: InstructionArgs): Instruction {
+		return { trace: tr, id: id, args: args };
 	}
 
 	function hasTokens(): Bool {
@@ -184,6 +171,22 @@ class Parser {
 		return true;
 	}
 
+	function assertRoamingType(?ty: String): lib.Std.E2TypeDef {
+		final token = this.readtoken;
+
+		if ( token == null || token.id != "lower_ident" )
+			this.error("Expected a lowercase type");
+
+		if (!token.properties.get("type"))
+			this.error('Not an existing type! Got [${ token.raw }]');
+
+		var typ = wire_expression_types.get(token.raw);
+		if (typ == null)
+			this.error("Type didn't exist?"); // We already check that the type exists in the tokenizer..
+
+		return typ;
+	}
+
 	function acceptTailingToken(id: String, ?raw: String): Bool {
 		final tok = this.readtoken;
 		if (tok == null || tok.whitespaced)
@@ -200,7 +203,7 @@ class Parser {
 		return this.acceptRoamingToken(id, raw);
 	}
 
-	function recurseLeftOp(func: ()->Instruction, ops: Array<String>, op_names: Array<String>): Instruction {
+	function recurseLeftOp(func: ()->Instruction, ops: Array<String>, op_ids: Array<Instr>): Instruction {
 		var expr = func();
 		var hit = true;
 		while(hit) {
@@ -208,7 +211,7 @@ class Parser {
 			for (ind => op_raw in ops) {
 				if ( this.acceptRoamingToken( "operator", op_raw ) ) {
 					hit = true;
-					expr = this.instruction( this.getTokenTrace(), op_names[ind], [expr, func()] );
+					expr = this.instruction( this.getTokenTrace(), op_ids[ind], [Instruction(expr), Instruction(func())] );
 					break;
 				}
 			}
@@ -223,7 +226,7 @@ class Parser {
 
 	function stmts(): Instruction {
 		var trace = this.getTokenTrace();
-		var stmts = this.instruction(trace, "root", []);
+		var stmts = this.instruction(trace, Instr.Root, []);
 
 		if (!this.hasTokens())
 			return stmts;
@@ -263,23 +266,18 @@ class Parser {
 			var exp = this.expr1();
 
 			if (this.acceptRoamingToken("grammar", ",")) {
-				if (!this.acceptRoamingType())
-					this.error("Indexing operator ([]) requires a lowercase type [X,t]");
-
+				final tp = this.assertRoamingType();
 				var typename = this.getTokenRaw();
 
 				if (!this.acceptRoamingToken("grammar", "]"))
 					this.error("Right square bracket (]) missing, to close indexing operator [X,t]");
 
-				final tp = wire_expression_types.get(typename);
-				if (tp == null)
-					this.error('Indexing operator ([]) does not support the type [$typename]');
-
-				// TODO This should be a multi-return
 				var out = [ { key: exp, type: tp.id, trace: trace } ];
+
 				var ind = this.acceptIndex();
 				if (ind != null)
 					out = out.concat(ind);
+
 				return out;
 			} else if (this.acceptTailingToken("grammar", "]")) {
 				return [ { key: exp, type: null, trace: trace }, null ];
@@ -292,7 +290,7 @@ class Parser {
 
 	function acceptBlock(block_name: String = "condition") {
 		var trace = this.getTokenTrace();
-		var stmts = this.instruction(trace, "root", []);
+		var stmts = this.instruction(trace, Instr.Root, []);
 
 		if (!this.acceptRoamingToken("grammar", "{"))
 			this.error('Left curly bracket ({) expected after $block_name');
@@ -335,11 +333,11 @@ class Parser {
 		while (true) {
 			if (this.acceptRoamingToken("keyword", "elseif")) {
 				args.push(
-					this.instruction(this.getTokenTrace(), "if", [this.acceptCondition(), this.acceptBlock("elseif condition"), null, false])
+					this.instruction(this.getTokenTrace(), Instr.If, [this.acceptCondition(), this.acceptBlock("elseif condition"), null, false])
 				);
 			} else if(this.acceptRoamingToken("keyword", "else")) {
 				args.push(
-					this.instruction(this.getTokenTrace(), "if", [null, this.acceptBlock("else"), null, true])
+					this.instruction(this.getTokenTrace(), Instr.If, [null, this.acceptBlock("else"), null, true])
 				);
 				break;
 			} else {
@@ -354,13 +352,12 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "else"))
 			return this.acceptBlock("else");
 
-		trace("root?");
-		return this.instruction( this.getTokenTrace(), "root", [] );
+		return this.instruction( this.getTokenTrace(), Instr.Root, [] );
 	}
 
 	function acceptCaseBlock() {
 		if (this.hasTokens()) {
-			var stmts = this.instruction(this.getTokenTrace(), "root", []);
+			var stmts = this.instruction(this.getTokenTrace(), Instr.Root, []);
 
 			if (this.hasTokens()) {
 				while (true) {
@@ -516,13 +513,6 @@ class Parser {
 				}
 			}
 
-			if (type != type.toLowerCase())
-				this.error("Type must be lowercased");
-
-			type = type.toUpperCase();
-
-			// TODO: Check if type exists here
-
 			for (v in vars) {
 				args.push( {name: v, type: type} );
 			}
@@ -534,7 +524,7 @@ class Parser {
 	function stmt1() {
 		if (this.acceptRoamingToken("keyword", "if")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "if", [this.acceptCondition(), this.acceptBlock("if condition"), this.acceptIfElseIf(), false] );
+			return this.instruction( trace, Instr.If, [this.acceptCondition(), this.acceptBlock("if condition"), this.acceptIfElseIf(), false] );
 		}
 		return this.stmt2();
 	}
@@ -543,7 +533,7 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "while")) {
 			var trace = this.getTokenTrace();
 			this.depth++;
-			var whl = this.instruction( trace, "while", [this.acceptCondition(), this.acceptBlock("while condition"), false] );
+			var whl = this.instruction( trace, Instr.While, [this.acceptCondition(), this.acceptBlock("while condition"), false] );
 			this.depth--;
 			return whl;
 		}
@@ -581,7 +571,7 @@ class Parser {
 			if (!this.acceptRoamingToken("grammar", ")"))
 				this.error("Right parenthesis ()) missing, to close condition");
 
-			var sfor = this.instruction( trace, "for", [v, estart, estop, estep, this.acceptBlock("for statement")] );
+			var sfor = this.instruction( trace, Instr.For, [v, estart, estop, estep, this.acceptBlock("for statement")] );
 
 			this.depth--;
 			return sfor;
@@ -648,7 +638,7 @@ class Parser {
 			if (!this.acceptRoamingToken("grammar", ")"))
 				this.error("Missing right parenthesis after foreach statement");
 
-			var sfea = this.instruction(trace, "foreach", [keyvar, keytype, valvar, valtype, tableexpr, this.acceptBlock("foreach statement")] );
+			var sfea = this.instruction(trace, Instr.Foreach, [keyvar, keytype, valvar, valtype, tableexpr, this.acceptBlock("foreach statement")] );
 			this.depth--;
 			return sfea;
 		}
@@ -660,14 +650,14 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "break")) {
 			if (this.depth > 0) {
 				var trace = this.getTokenTrace();
-				return this.instruction(trace, "break", []);
+				return this.instruction(trace, Instr.Foreach, []);
 			} else {
 				this.error("Break may not exist outside of a loop");
 			}
 		} else if (this.acceptRoamingToken("keyword", "continue")) {
 			if (this.depth > 0) {
 				var trace = this.getTokenTrace();
-				return this.instruction(trace, "continue", []);
+				return this.instruction(trace, Instr.Continue, []);
 			} else {
 				this.error("Continue may not exist outside of a loop");
 			}
@@ -682,13 +672,13 @@ class Parser {
 			var v = this.getTokenRaw();
 
 			if (this.acceptTailingToken("operator", "++")) {
-				return this.instruction( trace, "increment", [v] );
+				return this.instruction( trace, Instr.Increment, [v] );
 			} else if (this.acceptRoamingToken("operator", "++")) {
 				this.error("Increment operator (++) must not be preceded by whitespace");
 			}
 
 			if (this.acceptTailingToken("operator", "--")) {
-				return this.instruction( trace, "decrement", [v] );
+				return this.instruction( trace, Instr.Decrement, [v] );
 			} else if (this.acceptRoamingToken("operator", "--")) {
 				this.error("Decrement operator (--) must not be preceded by whitespace");
 			}
@@ -704,13 +694,13 @@ class Parser {
 			var v = this.getTokenRaw();
 
 			if (this.acceptRoamingToken("operator", "+=")) {
-				return this.instruction( trace, "assign", [ v, this.instruction(trace, "add", [this.instruction(trace, "variable", [v]), this.expr1()]) ] );
+				return this.instruction( trace, Instr.Assign, [ v, this.instruction(trace, Instr.Add, [this.instruction(trace, Instr.Var, [v]), this.expr1()]) ] );
 			} else if (this.acceptRoamingToken("operator", "-=")) {
-				return this.instruction( trace, "assign", [ v, this.instruction(trace, "sub", [this.instruction(trace, "variable", [v]), this.expr1()]) ] );
+				return this.instruction( trace, Instr.Assign, [ v, this.instruction(trace, Instr.Sub, [this.instruction(trace, Instr.Var, [v]), this.expr1()]) ] );
 			} else if (this.acceptRoamingToken("operator", "*=")) {
-				return this.instruction( trace, "assign", [ v, this.instruction(trace, "mul", [this.instruction(trace, "variable", [v]), this.expr1()]) ] );
+				return this.instruction( trace, Instr.Assign, [ v, this.instruction(trace, Instr.Mul, [this.instruction(trace, Instr.Var, [v]), this.expr1()]) ] );
 			} else if (this.acceptRoamingToken("operator", "/=")) {
-				return this.instruction( trace, "assign", [ v, this.instruction(trace, "div", [this.instruction(trace, "variable", [v]), this.expr1()]) ] );
+				return this.instruction( trace, Instr.Assign, [ v, this.instruction(trace, Instr.Div, [this.instruction(trace, Instr.Var, [v]), this.expr1()]) ] );
 			}
 
 			this.trackBack();
@@ -748,17 +738,18 @@ class Parser {
 						this.error("Invalid operator (local).");
 
 					var total = indexs.length;
-					var inst = this.instruction( trace, "variable", [v] );
+					var inst = this.instruction( trace, Instr.Var, [v] );
 
 					for (i in 0...total) {
 						var idx = indexs[i];
+
 						var key = idx.key;
 						var type = idx.type;
 						var trace = idx.trace;
 						if (i == total-1) {
-							inst = this.instruction( trace, "index_set", [inst, key, this.stmt8(false), type] );
+							inst = this.instruction( trace, Instr.IndexSet, [inst, key, this.stmt8(false), type] );
 						} else {
-							inst = this.instruction( trace, "index_get", [inst, key, type] );
+							inst = this.instruction( trace, Instr.IndexGet, [inst, key, type] );
 						}
 					} // Example Result: set( get( get(Var,1,table) ,1,table) ,3,"hello",string)
 					return inst;
@@ -766,9 +757,9 @@ class Parser {
 
 			} else if (this.acceptRoamingToken("operator", "=")) {
 				if (localized || parentLocalized) {
-					return this.instruction( trace, "assignlocal", [v, this.stmt8(true)] );
+					return this.instruction( trace, Instr.LAssign, [v, this.stmt8(true)] );
 				} else {
-					return this.instruction( trace, "assign", [v, this.stmt8(false)] );
+					return this.instruction( trace, Instr.Assign, [v, this.stmt8(false)] );
 				}
 			} else if (localized) {
 				this.error("Invalid operator (local) must be used for variable declaration.");
@@ -802,7 +793,7 @@ class Parser {
 			var cases = this.acceptSwitchBlock();
 			this.depth--;
 
-			return this.instruction(trace, "switch", [expr, cases]);
+			return this.instruction(trace, Instr.Switch, [expr, cases]);
 		}
 
 		return stmt10();
@@ -899,14 +890,14 @@ class Parser {
 
 			// TODO: Make sure you can't overwrite existing functions with the signature.
 
-			return this.instruction( trace, "fndecl", [name, ret, type, sig, args, this.acceptBlock("function declaration")] );
+			return this.instruction( trace, Instr.Function, [name, ret, type, sig, args, this.acceptBlock("function declaration")] );
 		} else if ( this.acceptRoamingToken("keyword", "return") ) {
 			var trace = this.getTokenTrace();
 
 			if ( this.acceptRoamingType("void") || (this.readtoken != null && this.readtoken.raw == "}" /* check if readtoken is rcb */ ) )
-				return this.instruction( trace, "return", [] );
+				return this.instruction( trace, Instr.Return, [] );
 
-			return this.instruction( trace, "return", [this.expr1()] );
+			return this.instruction( trace, Instr.Return, [this.expr1()] );
 		} else if ( this.acceptRoamingType("void") ) {
 			this.error("Void may only exist after return");
 		}
@@ -927,7 +918,7 @@ class Parser {
 
 			var condition = this.acceptCondition();
 
-			final instr = this.instruction( trace, "while", [condition, block, true] );
+			final instr = this.instruction( trace, Instr.While, [condition, block, true] );
 			this.depth--;
 			return instr;
 		}
@@ -961,7 +952,7 @@ class Parser {
 			if (!this.acceptRoamingToken("grammar", ")"))
 				this.error("Right parenthesis ()) missing, to close catch statement");
 
-			return this.instruction(trace, "try", [stmt, var_name, this.acceptBlock("catch block")] );
+			return this.instruction(trace, Instr.Try, [stmt, var_name, this.acceptBlock("catch block")] );
 		}
 		return expr1();
 	}
@@ -999,13 +990,13 @@ class Parser {
 			if (!this.acceptRoamingToken("grammar", ":"))
 				this.error( "Conditional operator (:) must appear after expression to complete conditional", this.getToken() );
 
-			return this.instruction( trace, "ternary", [expr, exprtrue, this.expr1()] );
+			return this.instruction( trace, Instr.Ternary, [expr, exprtrue, this.expr1()] );
 		}
 
-		if (this.acceptRoamingToken("keyword", "default")) {
+		if (this.acceptRoamingToken("grammar", "?:")) {
 			var trace = this.getTokenTrace();
 
-			return this.instruction( trace, "def", [expr, this.expr1()] );
+			return this.instruction( trace, Instr.TernaryDefault, [expr, this.expr1()] );
 		}
 
 		return expr;
@@ -1013,17 +1004,17 @@ class Parser {
 
 	// Yes, || and && are swapped. They should be logical ops but they are binary ops.
 	// We're trying to keep parity with E2, so this will be kept.
-	function expr3() return this.recurseLeftOp(this.expr4, ["||"], ["bor"]); // bitwise or
-	function expr4() return this.recurseLeftOp(this.expr5, ["&&"], ["band"]); // bitwise and
-	function expr5() return this.recurseLeftOp(this.expr6, ["|"], ["or"]); // logical or
-	function expr6() return this.recurseLeftOp(this.expr7, ["&"], ["and"]); // logical and
-	function expr7() return this.recurseLeftOp(this.expr8, ["^^"], ["xor"]); // binary xor
-	function expr8() return this.recurseLeftOp(this.expr9, ["==", "!="], ["eq", "neq"]);
-	function expr9() return this.recurseLeftOp(this.expr10, [">", "<", ">=", "<="], ["gt", "lt", "geq", "leq"]);
-	function expr10() return this.recurseLeftOp(this.expr11, [">>", "<<"], ["bshl", "bshr"]);
-	function expr11() return this.recurseLeftOp(this.expr12, ["+", "-"], ["add", "sub"]);
-	function expr12() return this.recurseLeftOp(this.expr13, ["*", "/", "%"], ["mul", "div", "mod"]);
-	function expr13() return this.recurseLeftOp(this.expr14, ["^"], ["exp"]); // exponent
+	function expr3() return this.recurseLeftOp(this.expr4, ["||"], [Instr.Bor]); // bitwise or
+	function expr4() return this.recurseLeftOp(this.expr5, ["&&"], [Instr.BAnd]); // bitwise and
+	function expr5() return this.recurseLeftOp(this.expr6, ["|"], [Instr.Or]); // logical or
+	function expr6() return this.recurseLeftOp(this.expr7, ["&"], [Instr.And]); // logical and
+	function expr7() return this.recurseLeftOp(this.expr8, ["^^"], [Instr.BXor]); // binary xor
+	function expr8() return this.recurseLeftOp(this.expr9, ["==", "!="], [Instr.Equal, Instr.NotEqual]);
+	function expr9() return this.recurseLeftOp(this.expr10, [">", "<", ">=", "<="], [Instr.GreaterThan, Instr.LessThan, Instr.GreaterThanEq, Instr.LessThanEq]);
+	function expr10() return this.recurseLeftOp(this.expr11, [">>", "<<"], [Instr.BShl, Instr.BShr]);
+	function expr11() return this.recurseLeftOp(this.expr12, ["+", "-"], [Instr.Add, Instr.Sub]);
+	function expr12() return this.recurseLeftOp(this.expr13, ["*", "/", "%"], [Instr.Mul, Instr.Div, Instr.Mod]);
+	function expr13() return this.recurseLeftOp(this.expr14, ["^"], [Instr.Exp]); // exponent
 
 	function expr14() {
 		if (this.acceptLeadingToken("operator", "+")) {
@@ -1034,14 +1025,14 @@ class Parser {
 
 		if (this.acceptLeadingToken("operator", "-")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "neg", [this.expr15()] );
+			return this.instruction( trace, Instr.Negative, [this.expr15()] );
 		} else if (this.acceptRoamingToken("operator", "-")) {
 			this.error("Negation operator (-) must not be succeeded by whitespace");
 		}
 
 		if (this.acceptLeadingToken("operator", "!")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "not", [this.expr14()] );
+			return this.instruction( trace, Instr.Not, [this.expr14()] );
 		} else if (this.acceptRoamingToken("operator", "!")) {
 			this.error("Logical not operator (!) must not be succeeded by whitespace");
 		}
@@ -1076,7 +1067,7 @@ class Parser {
 				var token = this.getToken();
 
 				if (this.acceptRoamingToken("grammar", ")")) {
-					expr = this.instruction( trace, "methodcall", [fun, expr] );
+					expr = this.instruction( trace, Instr.Methodcall, [fun, expr] );
 				} else {
 					var exprs = [this.expr1()];
 
@@ -1087,7 +1078,7 @@ class Parser {
 					if (!this.acceptRoamingToken("grammar", ")"))
 						this.error("Right parenthesis ()) missing, to close method argument list", token);
 
-					expr = this.instruction( trace, "methodcall", [fun, expr, exprs] );
+					expr = this.instruction( trace, Instr.Methodcall, [fun, expr, exprs] );
 				}
 			} else if (this.acceptTailingToken("grammar", "[")) {
 				var trace = this.getTokenTrace();
@@ -1097,8 +1088,9 @@ class Parser {
 
 				var aexpr = this.expr1();
 				if (this.acceptRoamingToken("grammar", ",")) {
+					final typ = this.assertRoamingType();
 					if (!this.acceptRoamingType())
-						this.error("Indexing operator ([]) requires a lower case type [X,t]");
+						this.error('Indexing operator ([]) does not support the type [${this.token.raw}]');
 
 					// TODO: maybe replace with another function
 					var longtp = this.getTokenRaw();
@@ -1107,12 +1099,9 @@ class Parser {
 						this.error("Right square bracket (]) missing, to close indexing operator [X,t]");
 
 					var typ = wire_expression_types.get(longtp);
-					if (typ == null)
-						this.error('Indexing operator ([]) does not support the type [$longtp]');
-
-					expr = this.instruction( trace, "index_get", [expr, aexpr, typ.id] );
+					expr = this.instruction( trace, Instr.IndexGet, [expr, aexpr, typ.id] );
 				} else if (this.acceptRoamingToken("grammar", "]")) {
-					expr = this.instruction( trace, "index_get", [expr, aexpr] );
+					expr = this.instruction( trace, Instr.IndexGet, [expr, aexpr] );
 				} else {
 					this.error("Indexing operator ([]) needs to be closed with comma (,) or right square bracket (])");
 				}
@@ -1148,9 +1137,9 @@ class Parser {
 
 					var stype = wire_expression_types.get( longtp ).id;
 
-					expr = this.instruction( trace, "stringcall", [expr, exprs, stype] );
+					expr = this.instruction( trace, Instr.Stringcall, [expr, exprs, stype] );
 				} else {
-					expr = this.instruction( trace, "stringcall", [expr, exprs, null] );
+					expr = this.instruction( trace, Instr.Stringcall, [expr, exprs, null] );
 				}
 			} else {
 				break;
@@ -1170,7 +1159,7 @@ class Parser {
 				this.error("Right parenthesis ()) missing, to close grouped equation", token);
 			}
 
-			return this.instruction( trace, "grouped_equation", [expr] );
+			return this.instruction( trace, Instr.GroupedEquation, [expr] );
 		}
 
 		if (this.acceptRoamingToken("lower_ident")) {
@@ -1189,7 +1178,7 @@ class Parser {
 			var token = this.getToken();
 
 			if (this.acceptRoamingToken("grammar", ")")) {
-				return this.instruction(trace, "call", [fun, []]);
+				return this.instruction(trace, Instr.Call, [fun, []]);
 			} else {
 				var kv_exprs = new Map();
 				var i_exprs = [];
@@ -1229,7 +1218,11 @@ class Parser {
 						if (!this.acceptRoamingToken("grammar", ")"))
 							this.error("Right parenthesis ()) missing, to close function argument list", this.getToken());
 
-						return this.instruction( trace, 'kv$fun', [kv_exprs, i_exprs] );
+						if (fun == "table") {
+							return this.instruction( trace, Instr.KVTable, [kv_exprs, i_exprs] );
+						} else {
+							return this.instruction( trace, Instr.KVArray, [kv_exprs, i_exprs] );
+						}
 					}
 				} else {
 					i_exprs = [this.expr1()];
@@ -1241,7 +1234,7 @@ class Parser {
 				if (!this.acceptRoamingToken("grammar", ")"))
 					this.error("Right parenthesis ()) missing, to close function argument list", token);
 
-				return this.instruction( trace, "call", [fun, kv_exprs, i_exprs] );
+				return this.instruction( trace, Instr.Call, [fun, kv_exprs, i_exprs] );
 			}
 		}
 
@@ -1251,12 +1244,12 @@ class Parser {
 	function expr17() {
 		if (this.acceptRoamingToken("number")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "literal", [this.token.literal, this.token.raw] );
+			return this.instruction( trace, Instr.Literal, [this.token.literal, this.token.raw] );
 		}
 
 		if (this.acceptRoamingToken("string")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, "literal", [this.token.literal, this.token.raw] );
+			return this.instruction( trace, Instr.Literal, [this.token.literal, this.token.raw] );
 		}
 
 		if (this.acceptRoamingToken("operator", "~")) {
@@ -1271,7 +1264,7 @@ class Parser {
 			}
 
 			var v = this.getLiteralString();
-			return this.instruction( trace, "trg", [v] );
+			return this.instruction( trace, Instr.Triggered, [v] );
 		}
 
 		if (this.acceptRoamingToken("operator", "$")) {
@@ -1288,7 +1281,7 @@ class Parser {
 			var v = this.getTokenRaw();
 			this.delta.set(v, true);
 
-			return this.instruction( trace, "dlt", [v] );
+			return this.instruction( trace, Instr.Delta, [v] );
 		}
 
 		if (this.acceptRoamingToken("operator", "->")) {
@@ -1303,7 +1296,7 @@ class Parser {
 			}
 
 			var v = this.getLiteralString();
-			return this.instruction( trace, "iwc", [v] );
+			return this.instruction( trace, Instr.Connected, [v] );
 		}
 
 		return this.expr18();
@@ -1331,7 +1324,7 @@ class Parser {
 
 	function expr19() {
 		if (this.acceptRoamingToken("ident")) {
-			return this.instruction( this.getTokenTrace(), "variable", [this.getTokenRaw()] );
+			return this.instruction( this.getTokenTrace(), Instr.Var, [this.getTokenRaw()] );
 		}
 
 		return this.exprError();
