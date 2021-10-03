@@ -99,46 +99,6 @@ HxOverrides.substr = function(s,pos,len) {
 HxOverrides.now = function() {
 	return Date.now();
 };
-function JSMain_main() {
-	var Preprocessor = new base_Preprocessor();
-	var Tokenizer = new base_Tokenizer();
-	var Parser = new base_Parser();
-	var input_textarea = window.document.getElementById("input");
-	var output_textarea = window.document.getElementById("output");
-	input_textarea.onkeypress = function(e) {
-		try {
-			var processed = Preprocessor.process(input_textarea.value);
-			var tokens = Tokenizer.process(processed);
-			var ast = Parser.process(tokens);
-			var out = base_transpiler_Lua_callInstruction(ast.id,[ast.args]);
-			var out_code = out;
-			output_textarea.value = out_code;
-		} catch( _g ) {
-			var exception = haxe_Exception.caught(_g);
-			output_textarea.value = exception.toString();
-		}
-	};
-}
-Math.__name__ = true;
-var Reflect = function() { };
-Reflect.__name__ = true;
-Reflect.field = function(o,field) {
-	try {
-		return o[field];
-	} catch( _g ) {
-		return null;
-	}
-};
-var Std = function() { };
-Std.__name__ = true;
-Std.string = function(s) {
-	return js_Boot.__string_rec(s,"");
-};
-var StringTools = function() { };
-StringTools.__name__ = true;
-StringTools.replace = function(s,sub,by) {
-	return s.split(sub).join(by);
-};
 var base_Parser = function() {
 	this.depth = 0;
 	this.tokens = [];
@@ -1304,74 +1264,170 @@ base_Preprocessor.prototype = {
 function base_Preprocessor_FILL_WHITESPACE(x) {
 	return hx_strings_Strings.repeat(" ",x.matched(0).length);
 }
-var base_TokenType = $hxEnums["base.TokenType"] = { __ename__:true,__constructs__:null
-	,Literal: {_hx_name:"Literal",_hx_index:0,__enum__:"base.TokenType",toString:$estr}
-	,Identifier: {_hx_name:"Identifier",_hx_index:1,__enum__:"base.TokenType",toString:$estr}
-	,Type: {_hx_name:"Type",_hx_index:2,__enum__:"base.TokenType",toString:$estr}
-	,Constant: {_hx_name:"Constant",_hx_index:3,__enum__:"base.TokenType",toString:$estr}
-	,Operator: {_hx_name:"Operator",_hx_index:4,__enum__:"base.TokenType",toString:$estr}
-	,Grammar: {_hx_name:"Grammar",_hx_index:5,__enum__:"base.TokenType",toString:$estr}
-	,Whitespace: {_hx_name:"Whitespace",_hx_index:6,__enum__:"base.TokenType",toString:$estr}
-	,Keyword: {_hx_name:"Keyword",_hx_index:7,__enum__:"base.TokenType",toString:$estr}
-	,Invalid: {_hx_name:"Invalid",_hx_index:8,__enum__:"base.TokenType",toString:$estr}
+var Std = function() { };
+Std.__name__ = true;
+Std.string = function(s) {
+	return js_Boot.__string_rec(s,"");
 };
-base_TokenType.__constructs__ = [base_TokenType.Literal,base_TokenType.Identifier,base_TokenType.Type,base_TokenType.Constant,base_TokenType.Operator,base_TokenType.Grammar,base_TokenType.Whitespace,base_TokenType.Keyword,base_TokenType.Invalid];
-var base_TokenMatch = function(identifier,pattern,tt,flag,processor) {
-	if(flag == null) {
-		flag = 0;
+var js_Boot = function() { };
+js_Boot.__name__ = true;
+js_Boot.__string_rec = function(o,s) {
+	if(o == null) {
+		return "null";
 	}
-	this.id = identifier;
-	this.tt = tt;
-	this.flag = flag;
-	this.pattern = pattern;
-	this.processor = processor;
-};
-base_TokenMatch.__name__ = true;
-base_TokenMatch.prototype = {
-	match: function(haystack,pos) {
-		if(pos == null) {
-			pos = 0;
-		}
-		if(this.pattern.matchSub(haystack,pos)) {
-			var matchedpos = this.pattern.matchedPos();
-			if(matchedpos.pos == pos) {
-				var tok = base_Token.from(matchedpos,this.pattern.matched(0),this);
-				if(this.processor != null) {
-					this.processor(tok,this.pattern);
-				}
-				return tok;
+	if(s.length >= 5) {
+		return "<...>";
+	}
+	var t = typeof(o);
+	if(t == "function" && (o.__name__ || o.__ename__)) {
+		t = "object";
+	}
+	switch(t) {
+	case "function":
+		return "<function>";
+	case "object":
+		if(o.__enum__) {
+			var e = $hxEnums[o.__enum__];
+			var con = e.__constructs__[o._hx_index];
+			var n = con._hx_name;
+			if(con.__params__) {
+				s = s + "\t";
+				return n + "(" + ((function($this) {
+					var $r;
+					var _g = [];
+					{
+						var _g1 = 0;
+						var _g2 = con.__params__;
+						while(true) {
+							if(!(_g1 < _g2.length)) {
+								break;
+							}
+							var p = _g2[_g1];
+							_g1 = _g1 + 1;
+							_g.push(js_Boot.__string_rec(o[p],s));
+						}
+					}
+					$r = _g;
+					return $r;
+				}(this))).join(",") + ")";
+			} else {
+				return n;
 			}
 		}
+		if(((o) instanceof Array)) {
+			var str = "[";
+			s += "\t";
+			var _g = 0;
+			var _g1 = o.length;
+			while(_g < _g1) {
+				var i = _g++;
+				str += (i > 0 ? "," : "") + js_Boot.__string_rec(o[i],s);
+			}
+			str += "]";
+			return str;
+		}
+		var tostr;
+		try {
+			tostr = o.toString;
+		} catch( _g ) {
+			return "???";
+		}
+		if(tostr != null && tostr != Object.toString && typeof(tostr) == "function") {
+			var s2 = o.toString();
+			if(s2 != "[object Object]") {
+				return s2;
+			}
+		}
+		var str = "{\n";
+		s += "\t";
+		var hasp = o.hasOwnProperty != null;
+		var k = null;
+		for( k in o ) {
+		if(hasp && !o.hasOwnProperty(k)) {
+			continue;
+		}
+		if(k == "prototype" || k == "__class__" || k == "__super__" || k == "__interfaces__" || k == "__properties__") {
+			continue;
+		}
+		if(str.length != 2) {
+			str += ", \n";
+		}
+		str += s + k + " : " + js_Boot.__string_rec(o[k],s);
+		}
+		s = s.substring(1);
+		str += "\n" + s + "}";
+		return str;
+	case "string":
+		return o;
+	default:
+		return String(o);
+	}
+};
+var hx_strings_Strings = function() { };
+hx_strings_Strings.__name__ = true;
+hx_strings_Strings.countMatches = function(searchIn,searchFor,startAt) {
+	if(startAt == null) {
+		startAt = 0;
+	}
+	if(searchIn == null || searchIn.length == 0 || (searchFor == null || searchFor.length == 0) || startAt >= searchIn.length) {
+		return 0;
+	}
+	if(startAt < 0) {
+		startAt = 0;
+	}
+	var count = 0;
+	var foundAt = startAt > -1 ? startAt - 1 : 0;
+	while(true) {
+		foundAt = searchIn.indexOf(searchFor,foundAt + 1);
+		if(!(foundAt > -1)) {
+			break;
+		}
+		++count;
+	}
+	return count;
+};
+hx_strings_Strings.isLowerCase = function(str) {
+	if(str == null || str.length == 0) {
+		return false;
+	}
+	return str == hx_strings_Strings.toLowerCase8(str);
+};
+hx_strings_Strings.repeat = function(str,count,separator) {
+	if(separator == null) {
+		separator = "";
+	}
+	if(str == null) {
 		return null;
 	}
-};
-var base_Token = function(pos,len,raw,id,flag,tt) {
-	if(tt == null) {
-		tt = base_TokenType.Invalid;
+	if(count < 1) {
+		return "";
 	}
-	if(flag == null) {
-		flag = 0;
+	if(count == 1) {
+		return str;
 	}
-	this.start = pos;
-	this.end = pos + len;
-	this.len = len;
-	this.raw = raw;
-	this.id = id;
-	this.flag = flag;
-	this.tt = tt;
-	this.char = pos;
-	this.line = 1;
-	this.literal = lib_E2Value.Void;
-	this.properties = new haxe_ds_StringMap();
-};
-base_Token.__name__ = true;
-base_Token.from = function(result,raw,matcher) {
-	return new base_Token(result.pos,result.len,raw,matcher.id,matcher.flag,matcher.tt);
-};
-base_Token.prototype = {
-	toString: function() {
-		return "Token [tt: " + Std.string(this.tt) + ", raw: \"" + this.raw + "\", id: " + this.id + ", %s: " + Std.string(this.whitespaced) + ", literal: " + Std.string(this.literal) + "]";
+	var _g = [];
+	var _g1 = 0;
+	var _g2 = count;
+	while(_g1 < _g2) {
+		var i = _g1++;
+		_g.push(str);
 	}
+	return _g.join(separator);
+};
+hx_strings_Strings.replaceAll = function(searchIn,searchFor,replaceWith) {
+	if(searchIn == null || (searchIn == null || searchIn.length == 0) || searchFor == null) {
+		return searchIn;
+	}
+	if(replaceWith == null) {
+		replaceWith = "null";
+	}
+	return StringTools.replace(searchIn,searchFor,replaceWith);
+};
+hx_strings_Strings.toLowerCase8 = function(str) {
+	if(str == null || str.length == 0) {
+		return str;
+	}
+	return str.toLowerCase();
 };
 var base_Tokenizer = function() {
 	this.token_matchers = [new base_TokenMatch("whitespace",new EReg("\\s+",""),base_TokenType.Whitespace,1),new base_TokenMatch("grammar",new EReg("{|}|,|;|:|\\(|\\)|\\[|\\]",""),base_TokenType.Grammar),new base_TokenMatch("keyword",new EReg("\\belseif|if|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return|do\\b",""),base_TokenType.Keyword),new base_TokenMatch("string",new EReg("(\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\")",""),base_TokenType.Literal,0,function(token,pattern) {
@@ -1439,6 +1495,113 @@ base_Tokenizer.prototype = {
 			}
 		}
 		return out;
+	}
+};
+var base_TokenType = $hxEnums["base.TokenType"] = { __ename__:true,__constructs__:null
+	,Literal: {_hx_name:"Literal",_hx_index:0,__enum__:"base.TokenType",toString:$estr}
+	,Identifier: {_hx_name:"Identifier",_hx_index:1,__enum__:"base.TokenType",toString:$estr}
+	,Type: {_hx_name:"Type",_hx_index:2,__enum__:"base.TokenType",toString:$estr}
+	,Constant: {_hx_name:"Constant",_hx_index:3,__enum__:"base.TokenType",toString:$estr}
+	,Operator: {_hx_name:"Operator",_hx_index:4,__enum__:"base.TokenType",toString:$estr}
+	,Grammar: {_hx_name:"Grammar",_hx_index:5,__enum__:"base.TokenType",toString:$estr}
+	,Whitespace: {_hx_name:"Whitespace",_hx_index:6,__enum__:"base.TokenType",toString:$estr}
+	,Keyword: {_hx_name:"Keyword",_hx_index:7,__enum__:"base.TokenType",toString:$estr}
+	,Invalid: {_hx_name:"Invalid",_hx_index:8,__enum__:"base.TokenType",toString:$estr}
+};
+base_TokenType.__constructs__ = [base_TokenType.Literal,base_TokenType.Identifier,base_TokenType.Type,base_TokenType.Constant,base_TokenType.Operator,base_TokenType.Grammar,base_TokenType.Whitespace,base_TokenType.Keyword,base_TokenType.Invalid];
+var base_TokenMatch = function(identifier,pattern,tt,flag,processor) {
+	if(flag == null) {
+		flag = 0;
+	}
+	this.id = identifier;
+	this.tt = tt;
+	this.flag = flag;
+	this.pattern = pattern;
+	this.processor = processor;
+};
+base_TokenMatch.__name__ = true;
+base_TokenMatch.prototype = {
+	match: function(haystack,pos) {
+		if(pos == null) {
+			pos = 0;
+		}
+		if(this.pattern.matchSub(haystack,pos)) {
+			var matchedpos = this.pattern.matchedPos();
+			if(matchedpos.pos == pos) {
+				var tok = base_Token.from(matchedpos,this.pattern.matched(0),this);
+				if(this.processor != null) {
+					this.processor(tok,this.pattern);
+				}
+				return tok;
+			}
+		}
+		return null;
+	}
+};
+var lib_E2Value = $hxEnums["lib.E2Value"] = { __ename__:true,__constructs__:null
+	,Void: {_hx_name:"Void",_hx_index:0,__enum__:"lib.E2Value",toString:$estr}
+	,Number: ($_=function(val) { return {_hx_index:1,val:val,__enum__:"lib.E2Value",toString:$estr}; },$_._hx_name="Number",$_.__params__ = ["val"],$_)
+	,String: ($_=function(val) { return {_hx_index:2,val:val,__enum__:"lib.E2Value",toString:$estr}; },$_._hx_name="String",$_.__params__ = ["val"],$_)
+};
+lib_E2Value.__constructs__ = [lib_E2Value.Void,lib_E2Value.Number,lib_E2Value.String];
+function JSMain_transpile() {
+	try {
+		var processed = JSMain_Preprocessor.process(JSMain_input_textarea.value);
+		var tokens = JSMain_Tokenizer.process(processed);
+		var ast = JSMain_Parser.process(tokens);
+		var out = base_transpiler_Lua_callInstruction(ast.id,[ast.args]);
+		var out_code = out;
+		JSMain_output_textarea.value = out_code;
+	} catch( _g ) {
+		var exception = haxe_Exception.caught(_g);
+		JSMain_output_textarea.value = exception.toString();
+	}
+}
+function JSMain_main() {
+	JSMain_transpile_button.onclick = JSMain_transpile;
+	JSMain_input_textarea.onkeypress = JSMain_transpile;
+}
+Math.__name__ = true;
+var Reflect = function() { };
+Reflect.__name__ = true;
+Reflect.field = function(o,field) {
+	try {
+		return o[field];
+	} catch( _g ) {
+		return null;
+	}
+};
+var StringTools = function() { };
+StringTools.__name__ = true;
+StringTools.replace = function(s,sub,by) {
+	return s.split(sub).join(by);
+};
+var base_Token = function(pos,len,raw,id,flag,tt) {
+	if(tt == null) {
+		tt = base_TokenType.Invalid;
+	}
+	if(flag == null) {
+		flag = 0;
+	}
+	this.start = pos;
+	this.end = pos + len;
+	this.len = len;
+	this.raw = raw;
+	this.id = id;
+	this.flag = flag;
+	this.tt = tt;
+	this.char = pos;
+	this.line = 1;
+	this.literal = lib_E2Value.Void;
+	this.properties = new haxe_ds_StringMap();
+};
+base_Token.__name__ = true;
+base_Token.from = function(result,raw,matcher) {
+	return new base_Token(result.pos,result.len,raw,matcher.id,matcher.flag,matcher.tt);
+};
+base_Token.prototype = {
+	toString: function() {
+		return "Token [tt: " + Std.string(this.tt) + ", raw: \"" + this.raw + "\", id: " + this.id + ", %s: " + Std.string(this.whitespaced) + ", literal: " + Std.string(this.literal) + "]";
 	}
 };
 var base_transpiler_Instructions = function() { };
@@ -1905,166 +2068,6 @@ haxe_iterators_ArrayIterator.prototype = {
 		return this.array[this.current++];
 	}
 };
-var js_Boot = function() { };
-js_Boot.__name__ = true;
-js_Boot.__string_rec = function(o,s) {
-	if(o == null) {
-		return "null";
-	}
-	if(s.length >= 5) {
-		return "<...>";
-	}
-	var t = typeof(o);
-	if(t == "function" && (o.__name__ || o.__ename__)) {
-		t = "object";
-	}
-	switch(t) {
-	case "function":
-		return "<function>";
-	case "object":
-		if(o.__enum__) {
-			var e = $hxEnums[o.__enum__];
-			var con = e.__constructs__[o._hx_index];
-			var n = con._hx_name;
-			if(con.__params__) {
-				s = s + "\t";
-				return n + "(" + ((function($this) {
-					var $r;
-					var _g = [];
-					{
-						var _g1 = 0;
-						var _g2 = con.__params__;
-						while(true) {
-							if(!(_g1 < _g2.length)) {
-								break;
-							}
-							var p = _g2[_g1];
-							_g1 = _g1 + 1;
-							_g.push(js_Boot.__string_rec(o[p],s));
-						}
-					}
-					$r = _g;
-					return $r;
-				}(this))).join(",") + ")";
-			} else {
-				return n;
-			}
-		}
-		if(((o) instanceof Array)) {
-			var str = "[";
-			s += "\t";
-			var _g = 0;
-			var _g1 = o.length;
-			while(_g < _g1) {
-				var i = _g++;
-				str += (i > 0 ? "," : "") + js_Boot.__string_rec(o[i],s);
-			}
-			str += "]";
-			return str;
-		}
-		var tostr;
-		try {
-			tostr = o.toString;
-		} catch( _g ) {
-			return "???";
-		}
-		if(tostr != null && tostr != Object.toString && typeof(tostr) == "function") {
-			var s2 = o.toString();
-			if(s2 != "[object Object]") {
-				return s2;
-			}
-		}
-		var str = "{\n";
-		s += "\t";
-		var hasp = o.hasOwnProperty != null;
-		var k = null;
-		for( k in o ) {
-		if(hasp && !o.hasOwnProperty(k)) {
-			continue;
-		}
-		if(k == "prototype" || k == "__class__" || k == "__super__" || k == "__interfaces__" || k == "__properties__") {
-			continue;
-		}
-		if(str.length != 2) {
-			str += ", \n";
-		}
-		str += s + k + " : " + js_Boot.__string_rec(o[k],s);
-		}
-		s = s.substring(1);
-		str += "\n" + s + "}";
-		return str;
-	case "string":
-		return o;
-	default:
-		return String(o);
-	}
-};
-var hx_strings_Strings = function() { };
-hx_strings_Strings.__name__ = true;
-hx_strings_Strings.countMatches = function(searchIn,searchFor,startAt) {
-	if(startAt == null) {
-		startAt = 0;
-	}
-	if(searchIn == null || searchIn.length == 0 || (searchFor == null || searchFor.length == 0) || startAt >= searchIn.length) {
-		return 0;
-	}
-	if(startAt < 0) {
-		startAt = 0;
-	}
-	var count = 0;
-	var foundAt = startAt > -1 ? startAt - 1 : 0;
-	while(true) {
-		foundAt = searchIn.indexOf(searchFor,foundAt + 1);
-		if(!(foundAt > -1)) {
-			break;
-		}
-		++count;
-	}
-	return count;
-};
-hx_strings_Strings.isLowerCase = function(str) {
-	if(str == null || str.length == 0) {
-		return false;
-	}
-	return str == hx_strings_Strings.toLowerCase8(str);
-};
-hx_strings_Strings.repeat = function(str,count,separator) {
-	if(separator == null) {
-		separator = "";
-	}
-	if(str == null) {
-		return null;
-	}
-	if(count < 1) {
-		return "";
-	}
-	if(count == 1) {
-		return str;
-	}
-	var _g = [];
-	var _g1 = 0;
-	var _g2 = count;
-	while(_g1 < _g2) {
-		var i = _g1++;
-		_g.push(str);
-	}
-	return _g.join(separator);
-};
-hx_strings_Strings.replaceAll = function(searchIn,searchFor,replaceWith) {
-	if(searchIn == null || (searchIn == null || searchIn.length == 0) || searchFor == null) {
-		return searchIn;
-	}
-	if(replaceWith == null) {
-		replaceWith = "null";
-	}
-	return StringTools.replace(searchIn,searchFor,replaceWith);
-};
-hx_strings_Strings.toLowerCase8 = function(str) {
-	if(str == null || str.length == 0) {
-		return str;
-	}
-	return str.toLowerCase();
-};
 var lib_ParseError = function(message,previous,native) {
 	haxe_Exception.call(this,message,previous,native);
 };
@@ -2127,12 +2130,6 @@ var lib_Instr = $hxEnums["lib.Instr"] = { __ename__:true,__constructs__:null
 	,GroupedEquation: {_hx_name:"GroupedEquation",_hx_index:51,__enum__:"lib.Instr",toString:$estr}
 };
 lib_Instr.__constructs__ = [lib_Instr.Root,lib_Instr.Break,lib_Instr.Continue,lib_Instr.For,lib_Instr.While,lib_Instr.If,lib_Instr.TernaryDefault,lib_Instr.Ternary,lib_Instr.Call,lib_Instr.Stringcall,lib_Instr.Methodcall,lib_Instr.Assign,lib_Instr.LAssign,lib_Instr.IndexGet,lib_Instr.IndexSet,lib_Instr.Add,lib_Instr.Sub,lib_Instr.Mul,lib_Instr.Div,lib_Instr.Mod,lib_Instr.Exp,lib_Instr.Equal,lib_Instr.NotEqual,lib_Instr.GreaterThanEq,lib_Instr.LessThanEq,lib_Instr.GreaterThan,lib_Instr.LessThan,lib_Instr.BAnd,lib_Instr.Bor,lib_Instr.BXor,lib_Instr.BShl,lib_Instr.BShr,lib_Instr.Increment,lib_Instr.Decrement,lib_Instr.Negative,lib_Instr.Not,lib_Instr.And,lib_Instr.Or,lib_Instr.Triggered,lib_Instr.Delta,lib_Instr.Connected,lib_Instr.Literal,lib_Instr.Var,lib_Instr.Foreach,lib_Instr.Function,lib_Instr.Return,lib_Instr.KVTable,lib_Instr.KVArray,lib_Instr.Switch,lib_Instr.Include,lib_Instr.Try,lib_Instr.GroupedEquation];
-var lib_E2Value = $hxEnums["lib.E2Value"] = { __ename__:true,__constructs__:null
-	,Void: {_hx_name:"Void",_hx_index:0,__enum__:"lib.E2Value",toString:$estr}
-	,Number: ($_=function(val) { return {_hx_index:1,val:val,__enum__:"lib.E2Value",toString:$estr}; },$_._hx_name="Number",$_.__params__ = ["val"],$_)
-	,String: ($_=function(val) { return {_hx_index:2,val:val,__enum__:"lib.E2Value",toString:$estr}; },$_._hx_name="String",$_.__params__ = ["val"],$_)
-};
-lib_E2Value.__constructs__ = [lib_E2Value.Void,lib_E2Value.Number,lib_E2Value.String];
 function $bind(o,m) { if( m == null ) return null; if( m.__id__ == null ) m.__id__ = $global.$haxeUID++; var f; if( o.hx__closures__ == null ) o.hx__closures__ = {}; else f = o.hx__closures__[m.__id__]; if( f == null ) { f = m.bind(o); o.hx__closures__[m.__id__] = f; } return f; }
 $global.$haxeUID |= 0;
 if(typeof(performance) != "undefined" ? typeof(performance.now) == "function" : false) {
@@ -2140,9 +2137,8 @@ if(typeof(performance) != "undefined" ? typeof(performance.now) == "function" : 
 }
 String.__name__ = true;
 Array.__name__ = true;
-haxe_ds_ObjectMap.count = 0;
 js_Boot.__toStr = ({ }).toString;
-var base_transpiler_Lua_IN_SWITCH = false;
+haxe_ds_ObjectMap.count = 0;
 var lib_Std_types = (function($this) {
 	var $r;
 	var _g = new haxe_ds_StringMap();
@@ -2157,5 +2153,12 @@ var lib_Std_types = (function($this) {
 	$r = _g;
 	return $r;
 }(this));
+var JSMain_Preprocessor = new base_Preprocessor();
+var JSMain_Tokenizer = new base_Tokenizer();
+var JSMain_Parser = new base_Parser();
+var JSMain_input_textarea = window.document.getElementById("input");
+var JSMain_output_textarea = window.document.getElementById("output");
+var JSMain_transpile_button = window.document.getElementById("transpile");
+var base_transpiler_Lua_IN_SWITCH = false;
 JSMain_main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
