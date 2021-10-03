@@ -21,17 +21,12 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Setup Haxe environment
-        uses: krdlab/setup-haxe@v1.1.5
+        uses: krdlab/setup-haxe@v1
         with:
-          haxe-version: 4.2.0
+          haxe-version: 4.2.3
 
-      - name: Setup Haxe dependencies
-        run: |
-          haxelib install utest
-          haxelib install iterators
-          haxelib install haxe-strings
-          haxelib install safety
-          haxelib install compiletime
+      - name: Install dependencies
+        run: haxelib install test.hxml --always
 
       - name: Run tests
         run: haxe test.hxml

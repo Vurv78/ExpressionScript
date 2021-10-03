@@ -19,14 +19,10 @@ jobs:
       - name: Setup Haxe & Haxelib
         uses: krdlab/setup-haxe@v1
         with:
-          haxe-version: 4.2.0
+          haxe-version: 4.2.3
 
       - name: Get Haxe Deps
-        run: |
-          haxelib install iterators
-          haxelib install haxe-strings
-          haxelib install safety
-          haxelib install compiletime
+        run: haxelib install deploy.hxml --always
 
       # Build haxe code to javascript
       - name: Build
