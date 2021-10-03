@@ -1258,8 +1258,8 @@ class Parser {
 				}
 			}
 
-			var v = this.getLiteralString();
-			return this.instruction( trace, Instr.Triggered, [v] );
+			var varname = this.getTokenRaw();
+			return this.instruction( trace, Instr.Triggered, [varname] );
 		}
 
 		if (this.acceptRoamingToken("operator", "$")) {
@@ -1273,10 +1273,8 @@ class Parser {
 				}
 			}
 
-			var v = this.getTokenRaw();
-			this.delta.set(v, true);
-
-			return this.instruction( trace, Instr.Delta, [v] );
+			var varname = this.getTokenRaw();
+			return this.instruction( trace, Instr.Delta, [varname] );
 		}
 
 		if (this.acceptRoamingToken("operator", "->")) {
@@ -1290,8 +1288,8 @@ class Parser {
 				}
 			}
 
-			var v = this.getLiteralString();
-			return this.instruction( trace, Instr.Connected, [v] );
+			var varname = this.getTokenRaw();
+			return this.instruction( trace, Instr.Connected, [varname] );
 		}
 
 		return this.expr18();
