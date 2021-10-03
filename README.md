@@ -1,11 +1,8 @@
 # ExpressionScript [![Release Shield](https://img.shields.io/github/v/release/Vurv78/ExpressionScript?include_prereleases)](https://github.com/Vurv78/ExpressionScript/releases/latest) [![License](https://img.shields.io/github/license/Vurv78/ExpressionScript?color=red&include_prereleases)](https://github.com/Vurv78/ExpressionScript/blob/master/LICENSE.md) [![Linter Badge](https://github.com/Vurv78/ExpressionScript/workflows/tests/badge.svg)](https://github.com/Vurv78/ExpressionScript/actions) [![github/Vurv78](https://img.shields.io/discord/824727565948157963?label=Discord&logo=discord&logoColor=ffffff&labelColor=7289DA&color=2c2f33)](https://discord.gg/yXKMt2XUXm)
-A language heavily derived from Expression2.  
-This was originally created to be a template to rewrite E2 for S&box, however at this point I don't really care about S&box nor am I interested in C#.  
+> Expression2 rewritten in Haxe.  
 
+This was originally created to be a template to rewrite E2 for S&box, however at this point S&Box looks awful and I'm not interested in C#.  
 All credit and ownership of Expression2 goes to the [wireteam](https://github.com/wiremod) & [wiremod](https://github.com/wiremod/wire).  
-
-## Compiler
-The compiler currently hasn't been finished. Most of the work has been done on the *Transpiler* for now.
 
 ## Transpiler
 This project allows you to convert ExpressionScript code to any language, as long as a transpiler is provided.  
@@ -26,13 +23,13 @@ The language is optimized for speed. E2 was known to be very slow, and this is n
 Here's a general status of each part of the language.
 | Name | Status |              Desc |
 | ---  | ---    |              ---  |
-| Preprocessor | 🚧    | No support for directives (I mean what would they do?). Of course they alongside comments are stripped out of code. Missing #ifdef, etc. |
-| Tokenizer    | ✔️    | Tokenizer should be completely finished. Some operators and grammar might be missing that I'm unaware of. |
-| Parser       | 🚧🏗️ | It is nearly done, however some things like #include are missing, and some statements/expressions might be buggy. |
-| Optimizer    | ❌    | Hasn't been started and there are no plans for this yet. |
-| Compiler     | 🚧    | Unfinished. |
+| Preprocessor       | 🚧    | No support for directives (I mean what would they do?). Of course they alongside comments are stripped out of code. Missing #ifdef, etc. |
+| Tokenizer          | ✔️    | Tokenizer should be completely finished. Some operators and grammar might be missing that I'm unaware of. |
+| Parser             | 🚧🏗️ | It is nearly done, however some things like #include are missing, and some statements/expressions might be buggy. |
+| Optimizer          | ❌    | Hasn't been started and there are no plans for this yet. |
+| Compiler           | 🚧    | I have not started work on this yet. |
 | (Lua) Transpiler   | ✔️🏗️ | Mostly done. |
-| Tests        | ✔️    | Unfinished. |
+| Tests              | ✔️    | Unit tests are used to verify integrity of the language. |
 
 ## Running Tests
 Tests are using the [utest](https://github.com/haxe-utest/utest) library.  
