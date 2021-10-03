@@ -1545,7 +1545,7 @@ function JSMain_transpile() {
 }
 function JSMain_main() {
 	JSMain_transpile_button.onclick = JSMain_transpile;
-	JSMain_input_textarea.onkeypress = JSMain_transpile;
+	JSMain_input_textarea.onkeyup = JSMain_transpile;
 }
 Math.__name__ = true;
 var Reflect = function() { };
