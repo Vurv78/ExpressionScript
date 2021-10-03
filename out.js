@@ -123,19 +123,6 @@ base_Parser.prototype = {
 		this.nextToken();
 		return this.root();
 	}
-	,getLiteralString: function() {
-		var _g = this.token.literal;
-		switch(_g._hx_index) {
-		case 0:
-			throw haxe_Exception.thrown("Tried to get a string from a void!");
-		case 1:
-			var _n = _g.val;
-			throw haxe_Exception.thrown("Tried to get a string from a number literal!");
-		case 2:
-			var str = _g.val;
-			return str;
-		}
-	}
 	,getTokenTrace: function() {
 		if(this.token == null) {
 			return { line : 1, char : 0};
@@ -1110,8 +1097,8 @@ base_Parser.prototype = {
 					this.error("Triggered operator (~) must be preceded by variable");
 				}
 			}
-			var v = this.getLiteralString();
-			return this.instruction(trace,lib_Instr.Triggered,[v]);
+			var varname = this.token.raw;
+			return this.instruction(trace,lib_Instr.Triggered,[varname]);
 		}
 		if(this.acceptRoamingToken("operator","$")) {
 			var trace = this.getTokenTrace();
@@ -1122,9 +1109,8 @@ base_Parser.prototype = {
 					this.error("Delta operator ($) must be preceded by variable");
 				}
 			}
-			var v = this.token.raw;
-			this.delta.h[v] = true;
-			return this.instruction(trace,lib_Instr.Delta,[v]);
+			var varname = this.token.raw;
+			return this.instruction(trace,lib_Instr.Delta,[varname]);
 		}
 		if(this.acceptRoamingToken("operator","->")) {
 			var trace = this.getTokenTrace();
@@ -1135,8 +1121,8 @@ base_Parser.prototype = {
 					this.error("Connected operator (->) must be preceded by variable");
 				}
 			}
-			var v = this.getLiteralString();
-			return this.instruction(trace,lib_Instr.Connected,[v]);
+			var varname = this.token.raw;
+			return this.instruction(trace,lib_Instr.Connected,[varname]);
 		}
 		return this.expr18();
 	}
