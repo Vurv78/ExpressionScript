@@ -30,19 +30,17 @@ jobs:
           haxe -version
           haxe deploy.hxml
 
-      - name: Move files to output folder
+      - name: Move output to static folder
         run: |
-          mkdir demo
-          mv bin/out.js demo
-          mv static demo
+          mv bin/out.js static
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./demo
+          publish_dir: ./static
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: ${{ github.event.head_commit.message }}
-          keep_files: true # Don't overwrite everything
+          keep_files: false # Whether to overwrite or not
           disable_nojekyll: true # Don't make a .nojekyll file
