@@ -99,16 +99,25 @@ HxOverrides.substr = function(s,pos,len) {
 HxOverrides.now = function() {
 	return Date.now();
 };
-function Main_main() {
-	var preprocessor = new base_Preprocessor();
-	var code = preprocessor.process(Main_CODE);
-	var tokenizer = new base_Tokenizer();
-	var tokens = tokenizer.process(code);
-	var parser = new base_Parser();
-	var ast = parser.process(tokens);
-	var out = base_transpiler_Lua_callInstruction(ast.id,[ast.args]);
-	var lua_code = out;
-	console.log("src/Main.hx:26:","Finished transpiling!");
+function JSMain_main() {
+	var Preprocessor = new base_Preprocessor();
+	var Tokenizer = new base_Tokenizer();
+	var Parser = new base_Parser();
+	var input_textarea = window.document.getElementById("input");
+	var output_textarea = window.document.getElementById("output");
+	input_textarea.onkeypress = function(e) {
+		try {
+			var processed = Preprocessor.process(input_textarea.value);
+			var tokens = Tokenizer.process(processed);
+			var ast = Parser.process(tokens);
+			var out = base_transpiler_Lua_callInstruction(ast.id,[ast.args]);
+			var out_code = out;
+			output_textarea.value = out_code;
+		} catch( _g ) {
+			var exception = haxe_Exception.caught(_g);
+			output_textarea.value = exception.toString();
+		}
+	};
 }
 Math.__name__ = true;
 var Reflect = function() { };
@@ -1766,6 +1775,15 @@ var haxe_Exception = function(message,previous,native) {
 	this.__nativeException = native != null ? native : this;
 };
 haxe_Exception.__name__ = true;
+haxe_Exception.caught = function(value) {
+	if(((value) instanceof haxe_Exception)) {
+		return value;
+	} else if(((value) instanceof Error)) {
+		return new haxe_Exception(value.message,null,value);
+	} else {
+		return new haxe_ValueException(value,null,value);
+	}
+};
 haxe_Exception.thrown = function(value) {
 	if(((value) instanceof haxe_Exception)) {
 		return value.get_native();
@@ -2124,7 +2142,6 @@ String.__name__ = true;
 Array.__name__ = true;
 haxe_ds_ObjectMap.count = 0;
 js_Boot.__toStr = ({ }).toString;
-var Main_CODE = "@name ExpressionScript Test\r\nGlobalVar = 400\r\n\r\n#[\r\n\tLorem ipsum dolor sit amet, consectetur adipiscing elit.\r\n\tNam euismod, tortor sed cursus placerat, massa nunc lobortis turpis,\r\n\tut vehicula ante nunc eget eros.\r\n]#\r\n\r\nprint(_AAAAAAAAAAA)\r\n\r\nwhile(1) {\r\n\tprint(\"while true do end\")\r\n}\r\n\r\n\"helloworld\"()\r\n\r\nif(1) {\r\n\tprint(\"hi\")\r\n} elseif(2) {\r\n\tprint(\"no\")\r\n} elseif(3) {\r\n\tprint(\"bye\")\r\n} else {\r\n\tprint(\"else\")\r\n}\r\n\r\nVar = 500\r\nswitch (Var) {\r\n\tcase 500,\r\n\t\tprint(\"this will happen\")\r\n\tbreak\r\n\r\n\tdefault,\r\n\t\tprint(\"this won't\")\r\n\tbreak\r\n}\r\n\r\ntry {\r\n\terror(\"Hello world\")\r\n} catch(Err) {\r\n\tprint(Err)\r\n}\r\n\r\nT = table()\r\nT[1, vector] = vec()\r\n\r\nprint( T[1, vector] )\r\n\r\nlocal Tbl = table(\r\n    \"width\" = Width,\r\n    \"height\" = Height,\r\n    \"done\" = 0,\r\n    \"output\" = table(),\r\n    \"png\" = 1,\r\n    \"type\" = Type,\r\n\r\n    \"crc\" = 0,\r\n    \"adler\" = 1\r\n)";
 var base_transpiler_Lua_IN_SWITCH = false;
 var lib_Std_types = (function($this) {
 	var $r;
@@ -2140,5 +2157,5 @@ var lib_Std_types = (function($this) {
 	$r = _g;
 	return $r;
 }(this));
-Main_main();
+JSMain_main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
