@@ -33,5 +33,5 @@ function transpile() {
 
 function main() {
 	transpile_button.onclick = transpile;
-	input_textarea.onkeypress = transpile;
+	input_textarea.onkeyup = transpile;
 }
