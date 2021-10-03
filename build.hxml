@@ -4,10 +4,12 @@
 --library iterators
 --library haxe-strings
 --library safety
+--library compiletime
 
 --class-path src
 --main Main
 
 --cpp bin/cpp
+#--hl bin/out.hl
 
 # Can also do other targets

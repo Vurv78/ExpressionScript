@@ -1,0 +1,51 @@
+name: Deploy Demo
+
+# Controls when the action will run.
+on:
+  # Only run on commits from master branch
+  push:
+      branches: [ master ]
+
+jobs:
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      - name: Setup Haxe & Haxelib
+        uses: krdlab/setup-haxe@v1
+        with:
+          haxe-version: 4.2.0
+
+      - name: Get Haxe Deps
+        run: |
+          haxelib install iterators
+          haxelib install haxe-strings
+          haxelib install safety
+          haxelib install compiletime
+
+      # Build haxe code to javascript
+      - name: Build
+        run: |
+          haxe -version
+          haxe deploy.hxml
+
+      - name: Move files to output folder
+        run: |
+          mkdir demo
+          mv bin/out.js demo
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./demo
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: ${{ github.event.head_commit.message }}
+          keep_files: true # Don't overwrite everything
+          disable_nojekyll: true # Don't make a .nojekyll file

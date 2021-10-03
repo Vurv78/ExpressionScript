@@ -43,8 +43,6 @@ Expr18 ← !(Var "++") !(Var "--") Expr19
 Expr19 ← Var
 */
 
-typedef FunctionParams = Array<{name: String, type: String}>;
-
 class Parser {
 	// Immutable
 	public var tokens: Array<Token>;
@@ -184,6 +182,8 @@ class Parser {
 		if (typ == null)
 			this.error("Type didn't exist?"); // We already check that the type exists in the tokenizer..
 
+		this.nextToken();
+
 		return typ;
 	}
 
@@ -211,7 +211,7 @@ class Parser {
 			for (ind => op_raw in ops) {
 				if ( this.acceptRoamingToken( "operator", op_raw ) ) {
 					hit = true;
-					expr = this.instruction( this.getTokenTrace(), op_ids[ind], [Instruction(expr), Instruction(func())] );
+					expr = this.instruction( this.getTokenTrace(), op_ids[ind], [expr, func()] );
 					break;
 				}
 			}
@@ -224,7 +224,7 @@ class Parser {
 		return this.stmts();
 	}
 
-	function stmts(): Instruction {
+	function stmts() {
 		var trace = this.getTokenTrace();
 		var stmts = this.instruction(trace, Instr.Root, []);
 
@@ -259,8 +259,7 @@ class Parser {
 		return expr;
 	}
 
-	// TODO Maybe type this.
-	function acceptIndex(): Null<Array<Null<{ type: Null<String>, trace: Trace, key: Instruction }>>> {
+	function acceptIndex(): Null<Array<Null<IndexResult>>> {
 		if (this.acceptTailingToken("grammar", "[")) {
 			var trace = this.getTokenTrace();
 			var exp = this.expr1();
@@ -272,7 +271,7 @@ class Parser {
 				if (!this.acceptRoamingToken("grammar", "]"))
 					this.error("Right square bracket (]) missing, to close indexing operator [X,t]");
 
-				var out = [ { key: exp, type: tp.id, trace: trace } ];
+				var out: Array<IndexResult> = [ { key: exp, type: tp.id, trace: trace } ];
 
 				var ind = this.acceptIndex();
 				if (ind != null)
@@ -387,8 +386,8 @@ class Parser {
 		return null;
 	}
 
-	function acceptSwitchBlock(): Array<{ ?match: Instruction, block: Instruction }> {
-		var cases: Array<{ ?match: Instruction, block: Instruction }> = [];
+	function acceptSwitchBlock() {
+		var cases: SwitchCases = [];
 		var def = false;
 
 		if ( this.hasTokens() && !this.acceptRoamingToken("grammar", ")") ) {
@@ -541,7 +540,7 @@ class Parser {
 		return this.stmt3();
 	}
 
-	function stmt3(): Instruction {
+	function stmt3() {
 		if (this.acceptRoamingToken("keyword", "for")) {
 			var trace = this.getTokenTrace();
 			this.depth++;
@@ -580,7 +579,7 @@ class Parser {
 		return this.stmt4();
 	}
 
-	function stmt4(): Instruction {
+	function stmt4() {
 		if (this.acceptRoamingToken("keyword", "foreach")) {
 			var trace = this.getTokenTrace();
 			this.depth++;
@@ -646,11 +645,11 @@ class Parser {
 		return this.stmt5();
 	}
 
-	function stmt5(): Instruction {
+	function stmt5() {
 		if (this.acceptRoamingToken("keyword", "break")) {
 			if (this.depth > 0) {
 				var trace = this.getTokenTrace();
-				return this.instruction(trace, Instr.Foreach, []);
+				return this.instruction(trace, Instr.Break, []);
 			} else {
 				this.error("Break may not exist outside of a loop");
 			}
@@ -666,7 +665,7 @@ class Parser {
 		return this.stmt6();
 	}
 
-	function stmt6(): Instruction {
+	function stmt6() {
 		if (this.acceptRoamingToken("ident")) {
 			var trace = this.getTokenTrace();
 			var v = this.getTokenRaw();
@@ -688,7 +687,7 @@ class Parser {
 		return this.stmt7();
 	}
 
-	function stmt7(): Instruction {
+	function stmt7() {
 		if (this.acceptRoamingToken("ident")) {
 			var trace = this.getTokenTrace();
 			var v = this.getTokenRaw();
@@ -709,7 +708,7 @@ class Parser {
 		return this.stmt8();
 	}
 
-	function stmt8(parentLocalized: Bool = false): Instruction {
+	function stmt8(parentLocalized: Bool = false) {
 		var localized = false;
 		if (this.acceptRoamingToken("keyword", "local")) {
 			if (parentLocalized)
@@ -774,7 +773,7 @@ class Parser {
 		return stmt9();
 	}
 
-	function stmt9(): Instruction {
+	function stmt9() {
 		if (this.acceptRoamingToken("keyword", "switch")) {
 			var trace = this.getTokenTrace();
 
@@ -799,7 +798,7 @@ class Parser {
 		return stmt10();
 	}
 
-	function stmt10(): Instruction {
+	function stmt10() {
 		if (this.acceptRoamingToken("keyword", "function")) {
 			var trace = this.getTokenTrace();
 
@@ -877,7 +876,6 @@ class Parser {
 
 			this.acceptFunctionArgs(used_vars, args);
 
-			// TODO: Properly build the signature
 			var sig = name + "(";
 			for (i in 1...args.length) {
 				var arg = args[i];
@@ -906,7 +904,7 @@ class Parser {
 	}
 
 	// do {} while(1)
-	function stmt11(): Instruction {
+	function stmt11() {
 		if (this.acceptRoamingToken("keyword", "do")) {
 			var trace = this.getTokenTrace();
 
@@ -933,7 +931,7 @@ class Parser {
 	 *		print(Err)
 	 *	}
 	**/
-	function stmt12(): Instruction {
+	function stmt12() {
 		if (this.acceptRoamingToken("keyword", "try")) {
 			var trace = this.getTokenTrace();
 			var stmt = this.acceptBlock("try block");
@@ -957,7 +955,7 @@ class Parser {
 		return expr1();
 	}
 
-	function expr1(): Instruction {
+	function expr1() {
 		this.exprtoken = this.getToken();
 
 		if (this.acceptRoamingToken("ident")) {
@@ -980,7 +978,7 @@ class Parser {
 		return this.expr2();
 	}
 
-	function expr2(): Instruction {
+	function expr2() {
 		var expr = this.expr3();
 
 		if (this.acceptRoamingToken("operator", "?")) {
@@ -1069,7 +1067,7 @@ class Parser {
 				if (this.acceptRoamingToken("grammar", ")")) {
 					expr = this.instruction( trace, Instr.Methodcall, [fun, expr] );
 				} else {
-					var exprs = [this.expr1()];
+					var exprs: Array<Instruction> = [this.expr1()];
 
 					while (this.acceptRoamingToken("grammar", ",")) {
 						exprs.push( this.expr1() );
@@ -1089,9 +1087,6 @@ class Parser {
 				var aexpr = this.expr1();
 				if (this.acceptRoamingToken("grammar", ",")) {
 					final typ = this.assertRoamingType();
-					if (!this.acceptRoamingType())
-						this.error('Indexing operator ([]) does not support the type [${this.token.raw}]');
-
 					// TODO: maybe replace with another function
 					var longtp = this.getTokenRaw();
 
@@ -1180,8 +1175,8 @@ class Parser {
 			if (this.acceptRoamingToken("grammar", ")")) {
 				return this.instruction(trace, Instr.Call, [fun, []]);
 			} else {
-				var kv_exprs = new Map();
-				var i_exprs = [];
+				var kv_exprs: Map<Instruction, Instruction> = new Map();
+				var i_exprs: Array<Instruction> = [];
 
 				// TODO: Make this work for all functions.
 				// So you can declare a kvtable / itable function and use them as params.

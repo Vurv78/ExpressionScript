@@ -1,6 +1,5 @@
 package utests;
 import lib.Instructions.Instr;
-import sys.FileSystem;
 import base.Tokenizer.Token;
 
 // TODO: Fix this entire test
@@ -15,7 +14,7 @@ class Parser extends Test {
 	var tokens: Array<Token>;
 
 	public function setup() {
-		this.script = sys.io.File.getContent("tests/data/test_script.e2");
+		this.script = CompileTime.readFile("tests/data/test_script.e2");
 
 		this.parser = new base.Parser();
 

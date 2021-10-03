@@ -3,7 +3,7 @@ package utests;
 import utest.Assert;
 import utest.Test;
 
-import lib.Type.E2Type;
+import lib.Type.E2Value;
 
 using hx.strings.Strings;
 
@@ -12,7 +12,7 @@ class Preprocessor extends Test {
 	var script: String;
 
 	public function setup() {
-		this.script = sys.io.File.getContent("tests/data/pp.e2");
+		this.script = CompileTime.readFile("tests/data/pp.e2");
 		this.processor = new base.Preprocessor();
 	}
 

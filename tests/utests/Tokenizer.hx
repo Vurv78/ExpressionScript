@@ -3,7 +3,7 @@ package utests;
 import utest.Assert;
 import utest.Test;
 
-import lib.Type.E2Type;
+import lib.Type.E2Value;
 
 class Tokenizer extends Test {
 	var script: String;
@@ -23,6 +23,6 @@ class Tokenizer extends Test {
 	public function testLiteralNumber() {
 		final tokens = this.tokenizer.process(this.script);
 
-		Assert.same( E2Type.Number(212), tokens[2].literal );
+		Assert.same( E2Value.Number(212), tokens[2].literal );
 	}
 }

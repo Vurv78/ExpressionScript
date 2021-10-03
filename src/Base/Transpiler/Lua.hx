@@ -1,25 +1,22 @@
 package base.transpiler;
 
-import lib.Type.E2Type;
+import lib.Type.E2Value;
 import haxe.exceptions.NotImplementedException;
 
 using lib.Instructions;
 using hx.strings.Strings;
 using Safety;
 
-final INSTRUCTIONS = Reflect.fields( haxe.rtti.Meta.getStatics(Instructions) );
 var IN_SWITCH: Bool = false;
 
 @:keep
 class Instructions {
 	static public function instr_root(instrs: Array<Instruction>) {
-		var out = [];
-		for (instr in instrs)
-			out.push( callInstruction(instr.id, instr.args) );
+		var out = [ for(instr in instrs) callInstruction(instr.id, instr.args) ];
 		return out.join('\n\n').replaceAll("\t\n", '');
 	}
 
-	static function instr_call(name: String, kvargs: Map<Dynamic, Instruction>, iargs: Array<Instruction>) {
+	static function instr_call(name: String, kvargs: Map<Instruction, Instruction>, iargs: Array<Instruction>) {
 		var args = [];
 		if (iargs != null) {
 			// Function was called with arguments
@@ -35,7 +32,7 @@ class Instructions {
 	static function instr_methodcall(meta_fname: String, meta_obj: Instruction, iargs: Array<Instruction>)
 		return '${ callInline(meta_obj) }:$meta_fname(${ (iargs!=null) ? iargs.map(x -> callInline(x)).join(", ") : '' })';
 
-	static function instr_literal(value: E2Type, raw: String)
+	static function instr_literal(value: E2Value, raw: String)
 		return raw;
 
 	static function instr_if(cond: Instruction, block: Instruction, ifeifs: Array<Instruction>, is_else: Bool) {
@@ -296,7 +293,7 @@ class Instructions {
 
 // Expr -> Lua
 @:nullSafety(Strict)
-function callInstruction(id: Instr, args: Array<Dynamic>): String {
+function callInstruction(id: Instr, args: InstructionArgs): String {
 	var name = 'instr_${Type.enumConstructor(id).toLowerCase()}';
 	if (!Reflect.hasField(Instructions, name))
 		throw new NotImplementedException('Unknown instruction: $name');
@@ -309,7 +306,7 @@ inline function callInline(instr: Instruction) {
 }
 
 inline function callBlock(instr: Instruction, indent: Bool) {
-	var out = callInstruction(instr.id, [instr.args]);
+	var out = callInstruction(instr.id, cast [instr.args]);
 	if (indent) return out.replaceAll('\n', "\n\t");
 	return out;
 }

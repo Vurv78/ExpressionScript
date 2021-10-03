@@ -3,7 +3,7 @@ package base;
 import lib.Std.types as wire_expression_types;
 import haxe.exceptions.NotImplementedException;
 import haxe.ValueException;
-import lib.Type.E2Type;
+import lib.Type.E2Value;
 import haxe.ds.Option;
 using hx.strings.Strings;
 using Safety;
@@ -87,7 +87,7 @@ class Token {
 	public final flag: TokenFlag;
 	public var tt: TokenType;
 
-	public var literal: E2Type; // Inferred value or the string that is more specifically the value.
+	public var literal: E2Value; // Inferred value or the string that is more specifically the value.
 
 	// Debug / Stack
 	public var line: Int;
@@ -109,7 +109,7 @@ class Token {
 		this.char = pos;
 		this.line = 1; // Will be assigned after
 
-		this.literal = E2Type.Void;
+		this.literal = E2Value.Void;
 		this.properties = [];
 	}
 
@@ -141,7 +141,7 @@ class Tokenizer {
 			new TokenMatch( "keyword", ~/\belseif|if|else|break|continue|local|while|switch|case|default|try|catch|foreach|for|function|return|do\b/, TokenType.Keyword ),
 
 			new TokenMatch( "string", ~/("[^"\\]*(?:\\.[^"\\]*)*")/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
-				token.literal = E2Type.String( pattern.matched(0) );
+				token.literal = E2Value.String( pattern.matched(0) );
 			}),
 
 			new TokenMatch( "number", ~/-?(0[xX][0-9a-fA-F]+)|(-?(\d*\.)?\d+)/, TokenType.Literal, TokenFlag.None, function(token, pattern) {
@@ -149,7 +149,7 @@ class Tokenizer {
 				var value = Std.parseFloat( pattern.matched(0) );
 				if (Math.isNaN(value))
 					throw "Invalid number matched! Wtf????"; // Shouldn't happen as long as our regex is good.
-				token.literal = E2Type.Number(value);
+				token.literal = E2Value.Number(value);
 			}),
 
 			new TokenMatch( "constant", ~/_\w[_\w]*/, TokenType.Constant, TokenFlag.None, function(token, pattern) {
@@ -159,7 +159,7 @@ class Tokenizer {
 				// This is a really weird system and exactly how E2 does it. I might move this logic to the preprocessor at some point
 				// (When I make it not fuck up traces)
 				token.id = "number";
-				token.literal = E2Type.Number(1000);
+				token.literal = E2Value.Number(1000);
 				token.tt = TokenType.Literal;
 				token.raw = "1000";
 			}),

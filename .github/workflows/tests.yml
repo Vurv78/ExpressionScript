@@ -31,6 +31,7 @@ jobs:
           haxelib install iterators
           haxelib install haxe-strings
           haxelib install safety
+          haxelib install compiletime
 
       - name: Run tests
         run: haxe test.hxml

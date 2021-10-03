@@ -1,7 +1,6 @@
-import sys.FileSystem;
-import sys.io.File;
 using Iterators;
-final CODE = sys.io.File.getContent("script.e2");
+
+final CODE: String = CompileTime.readFile("script.e2");
 
 function main() {
 	final preprocessor = new base.Preprocessor();
@@ -15,12 +14,14 @@ function main() {
 
 	final lua_code = base.transpiler.Lua.process(ast);
 
-	if (!FileSystem.exists("out"))
-		FileSystem.createDirectory("out");
+	#if sys
+		if (!sys.FileSystem.exists("out"))
+		sys.FileSystem.createDirectory("out");
 
-	final handle = sys.io.File.write('out/script.lua');
-		handle.writeString(lua_code);
-	handle.close();
+		final handle = sys.io.File.write('out/script.lua');
+			handle.writeString(lua_code);
+		handle.close();
+	#end
 
-	Sys.println("Done!");
+	trace("Finished transpiling!");
 }

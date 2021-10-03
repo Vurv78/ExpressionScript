@@ -1,13 +1,11 @@
+--dce full
 
---library utest
 --library iterators
 --library haxe-strings
 --library safety
 --library compiletime
--D utest
 
 --class-path src
---class-path tests
+--main Main
 
---macro utest.utils.Macro.checkHaxe()
---run TestMain
+--js bin/out.js
