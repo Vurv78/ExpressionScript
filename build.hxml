@@ -11,5 +11,3 @@
 
 --cpp bin/cpp
 #--hl bin/out.hl
-
-# Can also do other targets

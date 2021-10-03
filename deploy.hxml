@@ -6,6 +6,6 @@
 --library compiletime
 
 --class-path src
---main Main
+--main JSMain
 
 --js bin/out.js

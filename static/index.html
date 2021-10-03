@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+
+<head>
+	<title>ExpressionScript Playground</title>
+</head>
+
+<div class="header">
+	Basic ExpressionScript Playground
+</div>
+
+<body>
+	<textarea id="input" onkeydown="if(event.keyCode===9){var v=this.value,s=this.selectionStart,e=this.selectionEnd;this.value=v.substring(0, s)+'    '+v.substring(e);this.selectionStart=this.selectionEnd=s+4;return false;}" rows=50>
+@name Example Code
+print("Hello world!")
+
+for(I = 1, 5) {
+	if(I == 4) { continue }
+	print(I)
+}
+
+	</textarea>
+
+	<textarea readonly id="output" rows=50> </textarea>
+
+	<script src="out.js"></script>
+</body>
+
+<style>
+	textarea {
+		width: 40%;
+		margin-left: 50px;
+		background-color: #39464e;
+		border: none;
+		outline: none;
+		color: lightslategray;
+	}
+	body {
+		margin: 0;
+		background-color:#1f2227;
+		display: block;
+		color: lightslategray;
+	}
+
+	div.header {
+		text-align: center;
+		background-color: #1f1f7a;
+		color: #ebebfa;
+		padding: 0;
+		height: 50px;
+		margin: 0;
+	}
+</style>

@@ -34,6 +34,7 @@ jobs:
         run: |
           mkdir demo
           mv bin/out.js demo
+          mv static demo
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
