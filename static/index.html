@@ -1,56 +1,39 @@
 <!DOCTYPE html>
 
+<html lang="en">
 <head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+
 	<title>ExpressionScript Playground</title>
+	<link rel="stylesheet" href="style.css">
 </head>
-
-<div class="header">
-	Basic ExpressionScript Playground
-</div>
-
 <body>
-	<textarea id="input" onkeydown="if(event.keyCode===9){var v=this.value,s=this.selectionStart,e=this.selectionEnd;this.value=v.substring(0, s)+'    '+v.substring(e);this.selectionStart=this.selectionEnd=s+4;return false;}" rows=50>
-@name Example Code
+	<div class="header">Basic ExpressionScript Playground</div>
+	<div class="editors">
+		<textarea id="input" onkeydown="onEditInput(this, event)" rows=50>@name Example Code
 print("Hello world!")
 
 for(I = 1, 5) {
 	if(I == 4) { continue }
 	print(I)
-}
+}</textarea>
 
-	</textarea>
+		<textarea readonly id="output" rows=50></textarea>
+	</div>
+	<div class="footer"><button id="transpile">Transpile</button></div>
 
-	<textarea readonly id="output" rows=50> </textarea>
-
-	<center>
-		<button id="transpile">Transpile!</button>
-	</center>
-
+	<script>
+		function onEditInput(element, event) {
+			if (event.keyCode === 9) {
+				const v = element.value, s = element.selectionStart, e = element.selectionEnd;
+				element.value = v.substring(0, s) + '    ' + v.substring(e);
+				element.selectionStart = element.selectionEnd = s + 4;
+				return false;
+			}
+		}
+	</script>
 	<script src="out.js"></script>
 </body>
-
-<style>
-	textarea {
-		width: 40%;
-		margin-left: 50px;
-		background-color: #39464e;
-		border: none;
-		outline: none;
-		color: lightslategray;
-	}
-	body {
-		margin: 0;
-		background-color:#1f2227;
-		display: block;
-		color: lightslategray;
-	}
-
-	div.header {
-		text-align: center;
-		background-color: #1f1f7a;
-		color: #ebebfa;
-		padding: 0;
-		height: 50px;
-		margin: 0;
-	}
-</style>
+</html>
