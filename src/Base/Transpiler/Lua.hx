@@ -77,8 +77,8 @@ class Instructions {
 		if (is_dowhile) {
 			// Not using a repeat until
 			return 'while true do\n' +
-				'\t${ callBlock(block, true) }' +
-				'\tif not cond then break end\n' +
+				'\t${ callBlock(block, true) }\n' +
+				'\tif not ${ callInline(cond) } then break end\n' +
 				'\t::_continue_::\n' + // This might have to go on the line above.
 			'end';
 		}
