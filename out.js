@@ -1677,7 +1677,7 @@ base_transpiler_Instructions.instr_foreach = function(keyname,keytype,valname,va
 base_transpiler_Instructions.instr_while = function(cond,block,is_dowhile) {
 	if(is_dowhile) {
 		var out = base_transpiler_Lua_callInstruction(block.id,[block.args]);
-		return "while true do\n" + ("\t" + hx_strings_Strings.replaceAll(out,"\n","\n\t")) + "\tif not cond then break end\n" + "\t::_continue_::\n" + "end";
+		return "while true do\n" + ("\t" + hx_strings_Strings.replaceAll(out,"\n","\n\t") + "\n") + ("\tif not " + base_transpiler_Lua_callInstruction(cond.id,cond.args) + " then break end\n") + "\t::_continue_::\n" + "end";
 	}
 	var tmp = "while " + base_transpiler_Lua_callInstruction(cond.id,cond.args) + " do\n";
 	var out = base_transpiler_Lua_callInstruction(block.id,[block.args]);
@@ -2132,10 +2132,16 @@ var lib_Std_types = (function($this) {
 	_g.h["string"] = { id : "string"};
 	_g.h["table"] = { id : "table"};
 	_g.h["array"] = { id : "array"};
-	_g.h["vector"] = { id : "vector"};
 	_g.h["entity"] = { id : "entity"};
+	_g.h["vector"] = { id : "vector"};
 	_g.h["vector2"] = { id : "vector2"};
 	_g.h["vector4"] = { id : "vector4"};
+	_g.h["angle"] = { id : "angle"};
+	_g.h["quaternion"] = { id : "quaternion"};
+	_g.h["complex"] = { id : "complex"};
+	_g.h["matrix"] = { id : "matrix"};
+	_g.h["matrix2"] = { id : "matrix2"};
+	_g.h["matrix4"] = { id : "matrix4"};
 	$r = _g;
 	return $r;
 }(this));
