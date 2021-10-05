@@ -51,5 +51,7 @@ final types: Map<String, E2TypeDef> = [
 	}
 ];
 
-// wire_expression2_funcs
-final functions = [];
+// Signature for e2 functions.
+// For example applyForce(s:v)
+// TODO
+abstract E2FunctionSig(String) from String to String {}
