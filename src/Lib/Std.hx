@@ -1,5 +1,7 @@
 package lib;
 
+abstract E2TypeSig(String) from String to String {}
+
 typedef E2TypeDef = {
 	id: String
 };

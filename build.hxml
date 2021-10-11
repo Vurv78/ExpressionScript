@@ -6,8 +6,16 @@
 --library safety
 --library compiletime
 
+--macro Safety.safeApi("base", true)
+--macro nullSafety("base", Strict)
+--macro Safety.safeApi("lib", true)
+--macro nullSafety("lib", Strict)
+
 --class-path src
 --main Main
+--each
 
 --cpp bin/cpp
-#--hl bin/out.hl
+--next
+
+--hl bin/out.hl

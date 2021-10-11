@@ -18,8 +18,11 @@ class Preprocessor {
 	public function process(script: String) {
 		var processed = script;
 
-		for (regex in repl_order)
-			processed = regex.map( processed, this.repl[regex] );
+		for (regex in repl_order) {
+			var replacement = this.repl[regex];
+			if (replacement != null)
+				processed = regex.map( processed, replacement );
+		}
 
 		return processed;
 	}

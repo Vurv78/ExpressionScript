@@ -5,6 +5,9 @@
 --library safety
 --library compiletime
 
+--macro Safety.safeApi("base", true)
+--macro nullSafety("base", Strict)
+
 --class-path src
 --main JSMain
 

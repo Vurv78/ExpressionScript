@@ -1,12 +1,10 @@
 package base;
 
 import lib.Std.types as wire_expression_types;
-import haxe.exceptions.NotImplementedException;
-import haxe.ValueException;
 import lib.Type.E2Value;
-import haxe.ds.Option;
 using hx.strings.Strings;
 using Safety;
+using lib.Error;
 
 enum TokenType {
 	Literal;
@@ -54,7 +52,7 @@ class TokenMatch {
 	public final tt: TokenType;
 	final processor: Null<(token: Token, pattern: EReg)->Void>;
 
-	public function new(identifier: String, pattern: EReg, tt: TokenType, ?flag: TokenFlag = TokenFlag.None, ?processor: (token: Token, pattern: EReg)->Void ) {
+	public function new(identifier: String, pattern: EReg, tt: TokenType, flag: TokenFlag = TokenFlag.None, ?processor: (token: Token, pattern: EReg)->Void ) {
 		this.id = identifier;
 		this.tt = tt;
 		this.flag = flag;
@@ -90,8 +88,7 @@ class Token {
 	public var literal: E2Value; // Inferred value or the string that is more specifically the value.
 
 	// Debug / Stack
-	public var line: Int;
-	public var char: Int;
+	public var trace: Trace;
 	public var whitespaced: Bool; // Whether the token was preceeded by whitespace.
 	public var properties: Map<String, Bool>;
 
@@ -104,10 +101,10 @@ class Token {
 		this.id = id;
 		this.flag = flag;
 		this.tt = tt;
+		this.whitespaced = false;
 
 		// Stack / Debug
-		this.char = pos;
-		this.line = 1; // Will be assigned after
+		this.trace = { char: pos, line: 1 };
 
 		this.literal = E2Value.Void;
 		this.properties = [];
@@ -173,8 +170,6 @@ class Tokenizer {
 						token.properties.set("type", true);
 					}
 					token.properties.set("lowercase", true);
-				} else {
-					token.properties.set("lowercase", false);
 				}
 			}),
 
@@ -184,7 +179,7 @@ class Tokenizer {
 	}
 
 	public function process(script: String): Array<Token> {
-		var out = [];
+		var out: Array<Token> = [];
 		var pointer = 0; // Current position
 		var cur_line = 1;
 		var whitespaced = false; // Whether the token was preceeded by whitespace.
@@ -197,7 +192,8 @@ class Tokenizer {
 				if ( token != null ) {
 					pointer = token.end;
 					if ( !tokenizer.flag.has(TokenFlag.NoCatch) ) {
-						token.line = cur_line;
+						token.trace.line = cur_line;
+
 						token.whitespaced = whitespaced;
 						out.push(token);
 					} else if (token.tt == TokenType.Whitespace) {

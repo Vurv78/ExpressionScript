@@ -2,6 +2,9 @@ package base;
 import haxe.ds.StringMap;
 
 using Safety;
+using haxe.ds.Option;
+using hx.strings.Strings;
+
 using lib.Error;
 using lib.Instructions;
 
@@ -49,7 +52,7 @@ class Parser {
 	public var count: Int;
 
 	public var index: Int; // current token index
-	public var token: Token;
+	public var token: Null<Token>; // It's only null when you first create the parser. Will be filled when you run process on it.
 	public var readtoken: Null<Token>;
 	var exprtoken: Null<Token>;
 	var delta: Map<String, Bool>;
@@ -64,14 +67,8 @@ class Parser {
 		this.token = null;
 		this.readtoken = null;
 		this.exprtoken = null;
-	}
 
-	// For now
-	function error(msg: String, ?tok: Null<Token>) {
-		if (tok != null) {
-			throw new ParseError('$msg at line ${ token.line }, char ${ token.char }');
-		}
-		throw new ParseError('$msg at line ${ this.token.line }, char ${ this.token.char }');
+		this.delta = [];
 	}
 
 
@@ -82,19 +79,24 @@ class Parser {
 
 		this.nextToken();
 
-		return this.root();
+		try {
+			return this.root();
+		} catch(E: ParseError) {
+			final trace = E.trace.or( this.getToken().trace );
+			throw new ParseError('${E.message} at line ${ trace.line }, char ${ trace.char }');
+		}
 	}
 
 	inline function getToken(): Token {
-		return this.token;
+		return this.token.sure();
 	}
 
 	inline function getTokenRaw(): String {
-		return this.token.raw;
+		return this.getToken().raw;
 	}
 
 	function getLiteralString(): String {
-		switch (this.token.literal) {
+		switch (this.getToken().literal) {
 			case String(str): return str;
 			case Number(_n): throw "Tried to get a string from a number literal!";
 			case Void: throw "Tried to get a string from a void!";
@@ -102,7 +104,7 @@ class Parser {
 	}
 
 	function getLiteralNumber(): E2Number {
-		switch (this.token.literal) {
+		switch (this.getToken().literal) {
 			case String(_str): throw "Tried to get a number from a string literal!";
 			case Number(n): return n;
 			case Void: throw "Tried to get a number from a void!";
@@ -110,10 +112,7 @@ class Parser {
 	}
 
 	function getTokenTrace(): Trace {
-		if (this.token == null)
-			return { line: 1, char: 0 };
-
-		return { line: this.token.line, char: this.token.char };
+		return this.getToken().trace;
 	}
 
 	@:nullSafety(Strict)
@@ -140,6 +139,16 @@ class Parser {
 		this.nextToken();
 	}
 
+	/**
+	 * Returns whether the token is whitespaced. If tok is null then return false.
+	 */
+	function isWhitespaced(token: Null<Token>) {
+		if (token != null) {
+			return token.whitespaced;
+		}
+		return false;
+	}
+
 	// Accepts a token with an identifier from the list in Tokenizer.hx
 	function acceptRoamingToken(id: String, ?raw: String): Bool {
 		final token = this.readtoken;
@@ -158,7 +167,7 @@ class Parser {
 		if ( token == null || token.id != "lower_ident" )
 			return false;
 
-		if (!token.properties.get("type"))
+		if (!token.properties.exists("type"))
 			return false;
 
 		if (ty != null && token.raw != ty)
@@ -169,22 +178,20 @@ class Parser {
 		return true;
 	}
 
-	function assertRoamingType(?ty: String): lib.Std.E2TypeDef {
+	function assertRoamingType(?ty: String, msg: String = "Not an existing type! Got <T>"): lib.Std.E2TypeDef {
 		final token = this.readtoken;
 
 		if ( token == null || token.id != "lower_ident" )
-			this.error("Expected a lowercase type");
+			throw new TypeError("Expected a lowercase type");
 
-		if (!token.properties.get("type"))
-			this.error('Not an existing type! Got [${ token.raw }]');
+		if (!token.properties.exists("type"))
+			throw new TypeError( msg.replaceAll("<T>", token.raw) );
 
 		var typ = wire_expression_types.get(token.raw);
-		if (typ == null)
-			this.error("Type didn't exist?"); // We already check that the type exists in the tokenizer..
 
 		this.nextToken();
 
-		return typ;
+		return typ.sure();
 	}
 
 	function acceptTailingToken(id: String, ?raw: String): Bool {
@@ -233,15 +240,15 @@ class Parser {
 
 		while (true) {
 			if (this.acceptRoamingToken("grammar", ","))
-				this.error("Statement separator (,) must not appear multiple times");
+				throw new SyntaxError("Statement separator (,) must not appear multiple times");
 
 			stmts.args.push(this.stmt1());
 
 			if (!this.hasTokens())
 				break;
 
-			if ( !this.acceptRoamingToken("grammar", ",") && !this.readtoken.whitespaced )
-				this.error("Statements must be separated by comma (,) or whitespace");
+			if ( !this.acceptRoamingToken("grammar", ",") && !this.isWhitespaced(this.readtoken) )
+				throw new SyntaxError("Statements must be separated by comma (,) or whitespace");
 		}
 
 		return stmts;
@@ -249,12 +256,12 @@ class Parser {
 
 	function acceptCondition() {
 		if (!this.acceptRoamingToken("grammar", "("))
-			this.error("Left parenthesis (() expected before condition");
+			throw new SyntaxError("Left parenthesis (() expected before condition");
 
 		var expr = this.expr1();
 
 		if (!this.acceptRoamingToken("grammar", ")"))
-			this.error("Right parenthesis ()) missing, to close condition");
+			throw new SyntaxError("Right parenthesis ()) missing, to close condition");
 
 		return expr;
 	}
@@ -266,22 +273,21 @@ class Parser {
 
 			if (this.acceptRoamingToken("grammar", ",")) {
 				final tp = this.assertRoamingType();
-				var typename = this.getTokenRaw();
 
 				if (!this.acceptRoamingToken("grammar", "]"))
-					this.error("Right square bracket (]) missing, to close indexing operator [X,t]");
+					throw new SyntaxError("Right square bracket (]) missing, to close indexing operator [X,t]");
 
-				var out: Array<IndexResult> = [ { key: exp, type: tp.id, trace: trace } ];
+				var out: Array<Null<IndexResult>> = [ { key: exp, type: tp.id, trace: trace } ];
 
-				var ind = this.acceptIndex();
-				if (ind != null)
-					out = out.concat(ind);
+				// If successfully accepted an index, push to list of index ops
+				this.acceptIndex().apply((idx) -> out = out.concat(idx));
 
 				return out;
 			} else if (this.acceptTailingToken("grammar", "]")) {
-				return [ { key: exp, type: null, trace: trace }, null ];
+				// This used to be [ {...}, null ], might cause problems with removing the null.
+				return [ { key: exp, type: null, trace: trace } ];
 			} else {
-				this.error("Indexing operator ([]) must not be preceded by whitespace");
+				throw new SyntaxError("Indexing operator ([]) must not be preceded by whitespace");
 			}
 		}
 		return null;
@@ -292,7 +298,7 @@ class Parser {
 		var stmts = this.instruction(trace, Instr.Root, []);
 
 		if (!this.acceptRoamingToken("grammar", "{"))
-			this.error('Left curly bracket ({) expected after $block_name');
+			throw new SyntaxError('Left curly bracket ({) expected after $block_name');
 
 		var token = this.getToken();
 
@@ -302,9 +308,9 @@ class Parser {
 		if (this.hasTokens()) {
 			while (true) {
 				if (this.acceptRoamingToken("grammar", ",")) {
-					this.error("Statement separator (,) must not appear multiple times");
+					throw new SyntaxError("Statement separator (,) must not appear multiple times");
 				} else if (this.acceptRoamingToken("grammar", "}")) {
-					this.error("Statement separator (,) must be suceeded by statement");
+					throw new SyntaxError("Statement separator (,) must be suceeded by statement");
 				}
 
 				stmts.args.push( this.stmt1() );
@@ -316,15 +322,14 @@ class Parser {
 					if (!this.hasTokens())
 						break;
 
-					if (!this.readtoken.whitespaced)
-						this.error("Statements must be separated by comma (,) or whitespace");
+					if (!this.isWhitespaced(this.readtoken))
+						throw new SyntaxError("Statements must be separated by comma (,) or whitespace");
 
 				}
 			}
 		}
 
-		this.error("Right curly bracket (}) missing, to close switch block", token);
-		return null;
+		throw new SyntaxError("Right curly bracket (}) missing, to close switch block", token.trace);
 	}
 
 	function acceptIfElseIf(): Array<Instruction> {
@@ -364,26 +369,28 @@ class Parser {
 						this.trackBack();
 						return stmts;
 					} else if (this.acceptRoamingToken("grammar", ",")) {
-						this.error("Statement separator (,) must not appear multiple times");
+						throw new SyntaxError("Statement separator (,) must not appear multiple times");
 					} else if (this.acceptRoamingToken("grammar", "}")) {
-						this.error("Statement separator (,) must be suceeded by statement");
+						throw new SyntaxError("Statement separator (,) must be succeeded by statement");
 					}
 
 					stmts.args.push(this.stmt1());
 
 					if (!this.acceptRoamingToken("grammar", ",")) {
-						if (!this.hasTokens())
-							break;
+						if (!this.hasTokens()) break;
 
-						if (!this.readtoken.whitespaced)
-							this.error("Statements must be separated by comma (,) or whitespace");
+						if (!this.isWhitespaced(this.readtoken))
+							throw new SyntaxError("Statements must be separated by comma (,) or whitespace");
 					}
 				}
+				// Don't know if this should happen either.
+				return stmts;
+			} else {
+				throw new ParseError("Dunno if this should happen or not.");
 			}
 		} else {
-			this.error("Case block is missing after case declaration.");
+			throw new SyntaxError("Case block is missing after case declaration.");
 		}
-		return null;
 	}
 
 	function acceptSwitchBlock() {
@@ -392,7 +399,7 @@ class Parser {
 
 		if ( this.hasTokens() && !this.acceptRoamingToken("grammar", ")") ) {
 			if (!this.acceptRoamingToken("keyword", "case") && !this.acceptRoamingToken("keyword", "default"))
-				this.error("Case Operator (case) expected in case block.", this.getToken());
+				throw new SyntaxError("Case Operator (case) expected in case block.", this.getTokenTrace());
 
 			this.trackBack();
 
@@ -401,15 +408,15 @@ class Parser {
 					var expr = this.expr1();
 
 					if (!this.acceptRoamingToken("grammar", ","))
-						this.error("Comma (,) expected after case condition");
+						throw new SyntaxError("Comma (,) expected after case condition");
 
 					cases.push( { match: expr, block: this.acceptCaseBlock() } );
 				} else if (this.acceptRoamingToken("keyword", "default")) {
 					if (def)
-						this.error("Only one default case (default:) may exist.");
+						throw new UserError("Only one default case (default:) may exist.");
 
 					if (!this.acceptRoamingToken("grammar", ","))
-						this.error("Comma (,) expected after default case");
+						throw new SyntaxError("Comma (,) expected after default case");
 					def = true;
 					cases.push( { match: null, block: this.acceptCaseBlock() } );
 				} else {
@@ -419,7 +426,7 @@ class Parser {
 		}
 
 		if (!this.acceptRoamingToken("grammar", "}"))
-			this.error("Right curly bracket (}) missing, to close statement block", this.getToken());
+			throw new SyntaxError("Right curly bracket (}) missing, to close statement block");
 
 		return cases;
 	}
@@ -428,7 +435,7 @@ class Parser {
 		if ( this.hasTokens() && !this.acceptRoamingToken("grammar", ")") ) {
 			while (true) {
 				if (this.acceptRoamingToken("grammar", ","))
-					this.error("Argument separator (,) must not appear multiple times");
+					throw new SyntaxError("Argument separator (,) must not appear multiple times");
 
 				if ( this.acceptRoamingToken("ident") || this.acceptRoamingToken("lower_ident") ) {
 					this.acceptFunctionArg(used_vars, args);
@@ -440,7 +447,7 @@ class Parser {
 					break;
 				} else if ( !this.acceptRoamingToken("grammar", ",") ) {
 					this.nextToken();
-					this.error("Right parenthesis ()) expected after function arguments");
+					throw new SyntaxError("Right parenthesis ()) expected after function arguments");
 				}
 			}
 		}
@@ -451,21 +458,21 @@ class Parser {
 
 		var name = this.getTokenRaw();
 		if (name == null)
-			this.error("Variable required");
+			throw new SyntaxError("Variable required");
 
 		if (used_vars.exists(name))
-			this.error('Variable \'$name\' is already used as an argument,');
+			throw new UserError('Variable \'$name\' is already used as an argument,');
 
 		if (this.acceptRoamingToken("grammar", ":")) {
 			if (this.acceptRoamingType()) {
 				type = this.getTokenRaw();
 			} else {
-				this.error("Type expected after colon (:)");
+				throw new SyntaxError("Type expected after colon (:)");
 			}
 		}
 
 		if ( !wire_expression_types.exists(type)  )
-			this.error('Type $type does not exist.');
+			throw new TypeError('Type $type does not exist.');
 
 		// TODO: Check if type exists here
 
@@ -481,10 +488,10 @@ class Parser {
 					var name = this.getTokenRaw();
 
 					if (name == null)
-						this.error("Variable required");
+						throw new SyntaxError("Variable required");
 
 					if ( used_vars.exists(name) )
-						this.error('Variable \'$name\' is already used as an argument');
+						throw new UserError('Variable \'$name\' is already used as an argument');
 
 					used_vars.set(name, true);
 					vars.push(name);
@@ -492,14 +499,14 @@ class Parser {
 					break;
 				} else { // if !self:HasTokens() then
 					this.nextToken();
-					this.error("Right square bracket (]) expected at end of argument list");
+					throw new SyntaxError("Right square bracket (]) expected at end of argument list");
 				}
 			}
 
 			if (vars.length == 0) {
 				this.trackBack();
 				this.trackBack();
-				this.error("Variables expected in variable list");
+				throw new SyntaxError("Variables expected in variable list");
 			}
 
 			var type = "number";
@@ -508,7 +515,7 @@ class Parser {
 				if ( this.acceptRoamingType() ) {
 					type = this.getTokenRaw();
 				} else {
-					this.error("Type expected after colon (:)");
+					throw new TypeError("Type expected after colon (:)");
 				}
 			}
 
@@ -516,7 +523,7 @@ class Parser {
 				args.push( {name: v, type: type} );
 			}
 		} else {
-			this.error("Variable expected after left square bracket ([) in argument list");
+			throw new SyntaxError("Variable expected after left square bracket ([) in argument list");
 		}
 	}
 
@@ -546,31 +553,34 @@ class Parser {
 			this.depth++;
 
 			if (!this.acceptRoamingToken("grammar", "("))
-				this.error("Left parenthesis (() must appear before condition");
+				throw new SyntaxError("Left parenthesis (() must appear before condition");
 
 			if (!this.acceptRoamingToken("ident"))
-				this.error("Variable expected for the numeric index");
+				throw new SyntaxError("Variable expected for the numeric index");
 
 			var v = this.getTokenRaw();
 
 			if (!this.acceptRoamingToken("operator", "="))
-				this.error("Assignment operator (=) expected to preceed variable");
+				throw new SyntaxError("Assignment operator (=) expected to preceed variable");
 
 			var estart = this.expr1();
 
 			if (!this.acceptRoamingToken("grammar", ","))
-				this.error("Comma (,) expected after start value");
+				throw new SyntaxError("Comma (,) expected after start value");
 
 			var estop = this.expr1();
 
-			var estep = null;
+			var estep: Option<Instruction> = None;
 			if (this.acceptRoamingToken("grammar", ","))
-				estep = this.expr1();
+				estep = Some(this.expr1());
 
 			if (!this.acceptRoamingToken("grammar", ")"))
-				this.error("Right parenthesis ()) missing, to close condition");
+				throw new SyntaxError("Right parenthesis ()) missing, to close condition");
 
-			var sfor = this.instruction( trace, Instr.For, [v, estart, estop, estep, this.acceptBlock("for statement")] );
+			// Wrap estep in a nullable type
+			final estep_wrap = Maybe( Optional.Instruction(estep) );
+
+			var sfor = this.instruction( trace, Instr.For, [v, estart, estop, estep_wrap, this.acceptBlock("for statement")] );
 
 			this.depth--;
 			return sfor;
@@ -585,57 +595,50 @@ class Parser {
 			this.depth++;
 
 			if (!this.acceptRoamingToken("grammar", "("))
-				this.error("Left parenthesis missing (() after foreach statement");
+				throw new SyntaxError("Left parenthesis missing (() after foreach statement");
 
 			if (!this.acceptRoamingToken("ident"))
-				this.error("Variable expected to hold the key");
+				throw new SyntaxError("Variable expected to hold the key");
 
 			var keyvar = this.getTokenRaw();
 
-			var keytype = null;
+			var keytype = "number"; // By default foreach(K, V) will have K as a number (for arrays)
 
 			if (this.acceptRoamingToken("grammar", ":")) {
-				if (!this.acceptRoamingType())
-					this.error("Type expected after colon");
-
-				keytype = this.getTokenRaw();
-
-				var typ = wire_expression_types.get(keytype);
-				if (typ == null)
-					this.error('Unknown type: $keytype');
+				final typ = this.assertRoamingType();
 
 				keytype = typ.id;
 			}
 
 			if (!this.acceptRoamingToken("grammar", ","))
-				this.error("Comma (,) expected after key variable");
+				throw new SyntaxError("Comma (,) expected after key variable");
 
 			if (!this.acceptRoamingToken("ident"))
-				this.error("Variable expected to hold the value");
+				throw new SyntaxError("Variable expected to hold the value");
 
 			var valvar = this.getTokenRaw();
 
 			if (!this.acceptRoamingToken("grammar", ":"))
-				this.error("Colon (:) expected to separate type from variable");
+				throw new SyntaxError("Colon (:) expected to separate type from variable");
 
 			if (!this.acceptRoamingType())
-				this.error("Type expected after colon");
+				throw new SyntaxError("Type expected after colon");
 
 			var valtype = this.getTokenRaw();
 
 			var typ = wire_expression_types.get(valtype);
 			if (typ == null)
-				this.error('Unknown type: $valtype');
+				throw new TypeError('Unknown type: $valtype');
 
 			valtype = typ.id;
 
 			if (!this.acceptRoamingToken("operator", "="))
-				this.error("Equals sign (=) expected after value type to specify table");
+				throw new SyntaxError("Equals sign (=) expected after value type to specify table");
 
 			var tableexpr = this.expr1();
 
 			if (!this.acceptRoamingToken("grammar", ")"))
-				this.error("Missing right parenthesis after foreach statement");
+				throw new SyntaxError("Missing right parenthesis after foreach statement");
 
 			var sfea = this.instruction(trace, Instr.Foreach, [keyvar, keytype, valvar, valtype, tableexpr, this.acceptBlock("foreach statement")] );
 			this.depth--;
@@ -651,14 +654,14 @@ class Parser {
 				var trace = this.getTokenTrace();
 				return this.instruction(trace, Instr.Break, []);
 			} else {
-				this.error("Break may not exist outside of a loop");
+				throw new UserError("Break may not exist outside of a loop");
 			}
 		} else if (this.acceptRoamingToken("keyword", "continue")) {
 			if (this.depth > 0) {
 				var trace = this.getTokenTrace();
 				return this.instruction(trace, Instr.Continue, []);
 			} else {
-				this.error("Continue may not exist outside of a loop");
+				throw new UserError("Continue may not exist outside of a loop");
 			}
 		}
 
@@ -673,13 +676,13 @@ class Parser {
 			if (this.acceptTailingToken("operator", "++")) {
 				return this.instruction( trace, Instr.Increment, [v] );
 			} else if (this.acceptRoamingToken("operator", "++")) {
-				this.error("Increment operator (++) must not be preceded by whitespace");
+				throw new SyntaxError("Increment operator (++) must not be preceded by whitespace");
 			}
 
 			if (this.acceptTailingToken("operator", "--")) {
 				return this.instruction( trace, Instr.Decrement, [v] );
 			} else if (this.acceptRoamingToken("operator", "--")) {
-				this.error("Decrement operator (--) must not be preceded by whitespace");
+				throw new SyntaxError("Decrement operator (--) must not be preceded by whitespace");
 			}
 			this.trackBack();
 		}
@@ -687,7 +690,7 @@ class Parser {
 		return this.stmt7();
 	}
 
-	function stmt7() {
+	function stmt7(): Instruction {
 		if (this.acceptRoamingToken("ident")) {
 			var trace = this.getTokenTrace();
 			var v = this.getTokenRaw();
@@ -708,11 +711,11 @@ class Parser {
 		return this.stmt8();
 	}
 
-	function stmt8(parentLocalized: Bool = false) {
+	function stmt8(parentLocalized: Bool = false): Instruction {
 		var localized = false;
 		if (this.acceptRoamingToken("keyword", "local")) {
 			if (parentLocalized)
-				this.error("Assignment can't contain roaming local operator");
+				throw new UserError("Assignment can't contain roaming local operator");
 
 			localized = true;
 		}
@@ -734,21 +737,23 @@ class Parser {
 
 				if (this.acceptRoamingToken("operator", "=")) {
 					if (localized || parentLocalized)
-						this.error("Invalid operator (local).");
+						throw new UserError("Invalid operator (local).");
 
 					var total = indexs.length;
 					var inst = this.instruction( trace, Instr.Var, [v] );
 
-					for (i in 0...total) {
-						var idx = indexs[i];
-
+					for (i => idx in indexs) {
+						idx = idx.sure();
 						var key = idx.key;
 						var type = idx.type;
 						var trace = idx.trace;
+
+						// Pls..
+						final type_wrap = Maybe( Optional.String(type) );
 						if (i == total-1) {
-							inst = this.instruction( trace, Instr.IndexSet, [inst, key, this.stmt8(false), type] );
+							inst = this.instruction( trace, Instr.IndexSet, [inst, key, this.stmt8(false), type_wrap] );
 						} else {
-							inst = this.instruction( trace, Instr.IndexGet, [inst, key, type] );
+							inst = this.instruction( trace, Instr.IndexGet, [inst, key, type_wrap] );
 						}
 					} // Example Result: set( get( get(Var,1,table) ,1,table) ,3,"hello",string)
 					return inst;
@@ -761,13 +766,13 @@ class Parser {
 					return this.instruction( trace, Instr.Assign, [v, this.stmt8(false)] );
 				}
 			} else if (localized) {
-				this.error("Invalid operator (local) must be used for variable declaration.");
+				throw new UserError("Invalid operator (local) must be used for variable declaration.");
 			}
 
 			this.index = tbpos - 2;
 			this.nextToken();
 		} else if (localized) {
-			this.error("Invalid operator (local) must be used for variable declaration.");
+			throw new UserError("Invalid operator (local) must be used for variable declaration.");
 		}
 
 		return stmt9();
@@ -778,15 +783,15 @@ class Parser {
 			var trace = this.getTokenTrace();
 
 			if (!this.acceptRoamingToken("grammar", "("))
-				this.error("Left parenthesis (() expected before switch condition");
+				throw new SyntaxError("Left parenthesis (() expected before switch condition");
 
 			var expr = this.expr1();
 
 			if (!this.acceptRoamingToken("grammar", ")"))
-				this.error("Right parenthesis ()) expected after switch condition");
+				throw new SyntaxError("Right parenthesis ()) expected after switch condition");
 
 			if (!this.acceptRoamingToken("grammar", "{"))
-				this.error("Left curly bracket ({) expected after switch condition");
+				throw new SyntaxError("Left curly bracket ({) expected after switch condition");
 
 			this.depth++;
 			var cases = this.acceptSwitchBlock();
@@ -802,13 +807,13 @@ class Parser {
 		if (this.acceptRoamingToken("keyword", "function")) {
 			var trace = this.getTokenTrace();
 
-			var name: String = null;
+			var name: Null<String> = null;
 			var ret: String = "void";
-			var type: String = null; // Metatype <entity>:fnCall()
+			var type: Null<String> = null; // Metatype <entity>:fnCall()
 
-			var name_token = null;
-			var return_token = null;
-			var type_token = null;
+			var name_token: Null<Token> = null;
+			var return_token: Null<Token> = null;
+			var type_token: Null<Token> = null;
 
 			var args: FunctionParams = [];
 			var used_vars: StringMap<Bool> = new StringMap();
@@ -816,7 +821,7 @@ class Parser {
 			// Errors are handled after line 49, both 'fun' and 'var' tokens are used for accurate error reports.
 			if ( this.acceptRoamingToken("lower_ident") ) {
 				name = this.getTokenRaw();
-				name_token = this.token; // Copy the current token for error logging
+				name_token = this.getToken(); // Copy the current token for error logging
 
 				// Check if previous token was the type rather than the function name
 				if ( this.acceptRoamingToken("lower_ident") ) {
@@ -824,7 +829,7 @@ class Parser {
 					return_token = name_token;
 
 					name = this.getTokenRaw();
-					name_token = this.token;
+					name_token = this.getToken();
 				}
 
 				// Check if the token before was the metatype
@@ -834,52 +839,51 @@ class Parser {
 						type_token = name_token;
 
 						name = this.getTokenRaw();
-						name_token = this.token;
+						name_token = this.getToken();
 					} else {
-						this.error("Function name must appear after colon (:)");
+						throw new SyntaxError("Function name must appear after colon (:)");
 					}
 				}
 			}
 
 			if (ret != "void") {
-				if (ret != ret.toLowerCase())
-					this.error("Function return type must be lowercased", return_token);
+				// We already made sure the return type is lowercase by accepting ``lower_ident``
+				if (!return_token.sure().properties.exists("type"))
+					throw new TypeError('Invalid return type [${ ret }]');
 
 				ret = ret.toUpperCase();
-
-				// TODO: Check if ``ret`` is a valid return type.
 			}
 
-			if (type != null) {
+			if (type != null && type_token != null) {
 				if (type != type.toLowerCase())
-					this.error("Function object must be full lowercase", type_token);
+					throw new SyntaxError("Function object must be full lowercase", type_token.trace);
 				if (type == "void")
-					this.error("Void cannot be used as function object type", type_token);
+					throw new UserError("Void cannot be used as function object type", type_token.trace);
 
 				type = type.toUpperCase();
 
 				// TODO: Check if ``type`` is a valid type.
 
 				used_vars.set("This", true);
-				args[0] = { name: "This", type: type };
+				args[0] = { name: "This", type: type.sure() };
 			}
 
 			if (name == null)
-				this.error("Function name must follow function declaration");
+				throw new SyntaxError("Function name must follow function declaration");
 
 			var first_char = name.charAt(0);
 			if (first_char != first_char.toLowerCase())
-				this.error("Function name must start with a lower case letter", name_token);
+				throw new SyntaxError("Function name must start with a lower case letter", name_token.sure().trace);
 
 			if ( !this.acceptRoamingToken("grammar", "(") )
-				this.error("Left parenthesis (() must appear after function name");
+				throw new SyntaxError("Left parenthesis (() must appear after function name");
 
 			this.acceptFunctionArgs(used_vars, args);
 
 			var sig = name + "(";
 			for (i in 1...args.length) {
 				var arg = args[i];
-				sig += wire_expression_types.get(arg.type).id;
+				sig += wire_expression_types.get(arg.type).sure().id;
 				if (i == 1 && arg.name == "This" && type != '') {
 					sig += ":";
 				}
@@ -888,7 +892,9 @@ class Parser {
 
 			// TODO: Make sure you can't overwrite existing functions with the signature.
 
-			return this.instruction( trace, Instr.Function, [name, ret, type, sig, args, this.acceptBlock("function declaration")] );
+
+			final type_wrap = Maybe( Optional.String(type) );
+			return this.instruction( trace, Instr.Function, [name, ret, type_wrap, sig, args, this.acceptBlock("function declaration")] );
 		} else if ( this.acceptRoamingToken("keyword", "return") ) {
 			var trace = this.getTokenTrace();
 
@@ -897,7 +903,7 @@ class Parser {
 
 			return this.instruction( trace, Instr.Return, [this.expr1()] );
 		} else if ( this.acceptRoamingType("void") ) {
-			this.error("Void may only exist after return");
+			throw new SyntaxError("Void may only exist after return");
 		}
 
 		return stmt11();
@@ -912,7 +918,7 @@ class Parser {
 			var block = this.acceptBlock("do keyword");
 
 			if ( !this.acceptRoamingToken("keyword", "while") )
-				this.error("while expected after do block");
+				throw new SyntaxError("while expected after do block");
 
 			var condition = this.acceptCondition();
 
@@ -937,39 +943,39 @@ class Parser {
 			var stmt = this.acceptBlock("try block");
 
 			if (!this.acceptRoamingToken("keyword", "catch"))
-				this.error("Try block must be followed by catch statement");
+				throw new SyntaxError("Try block must be followed by catch statement");
 
 			if (!this.acceptRoamingToken("grammar", "("))
-				this.error("Left parenthesis (() expected after catch keyword");
+				throw new SyntaxError("Left parenthesis (() expected after catch keyword");
 
 			if (!this.acceptRoamingToken("ident"))
-				this.error("Variable expected after left parenthesis (() in catch statement");
+				throw new SyntaxError("Variable expected after left parenthesis (() in catch statement");
 
 			var var_name = this.getTokenRaw();
 
 			if (!this.acceptRoamingToken("grammar", ")"))
-				this.error("Right parenthesis ()) missing, to close catch statement");
+				throw new SyntaxError("Right parenthesis ()) missing, to close catch statement");
 
 			return this.instruction(trace, Instr.Try, [stmt, var_name, this.acceptBlock("catch block")] );
 		}
 		return expr1();
 	}
 
-	function expr1() {
+	function expr1(): Instruction {
 		this.exprtoken = this.getToken();
 
 		if (this.acceptRoamingToken("ident")) {
 			if (this.acceptRoamingToken("operator", "="))
-				this.error("Assignment operator (=) must not be part of equation");
+				throw new SyntaxError("Assignment operator (=) must not be part of equation");
 
 			if (this.acceptRoamingToken("operator", "+=")) {
-				this.error("Additive assignment operator (+=) must not be part of equation");
+				throw new SyntaxError("Additive assignment operator (+=) must not be part of equation");
 			} else if (this.acceptRoamingToken("operator", "-=")) {
-				this.error("Subtractive assignment operator (-=) must not be part of equation");
+				throw new SyntaxError("Subtractive assignment operator (-=) must not be part of equation");
 			} else if (this.acceptRoamingToken("operator", "*=")) {
-				this.error("Multiplicative assignment operator (*=) must not be part of equation");
+				throw new SyntaxError("Multiplicative assignment operator (*=) must not be part of equation");
 			} else if (this.acceptRoamingToken("operator", "/=")) {
-				this.error("Divisive assignment operator (/=) must not be part of equation");
+				throw new SyntaxError("Divisive assignment operator (/=) must not be part of equation");
 			}
 
 			this.trackBack();
@@ -986,7 +992,7 @@ class Parser {
 			var exprtrue = this.expr1();
 
 			if (!this.acceptRoamingToken("grammar", ":"))
-				this.error( "Conditional operator (:) must appear after expression to complete conditional", this.getToken() );
+				throw new SyntaxError( "Conditional operator (:) must appear after expression to complete conditional" );
 
 			return this.instruction( trace, Instr.Ternary, [expr, exprtrue, this.expr1()] );
 		}
@@ -1018,21 +1024,21 @@ class Parser {
 		if (this.acceptLeadingToken("operator", "+")) {
 			return this.expr15();
 		} else if (this.acceptRoamingToken("operator", "+")) {
-			this.error("Identity operator (+) must not be succeeded by whitespace");
+			throw new SyntaxError("Identity operator (+) must not be succeeded by whitespace");
 		}
 
 		if (this.acceptLeadingToken("operator", "-")) {
 			var trace = this.getTokenTrace();
 			return this.instruction( trace, Instr.Negative, [this.expr15()] );
 		} else if (this.acceptRoamingToken("operator", "-")) {
-			this.error("Negation operator (-) must not be succeeded by whitespace");
+			throw new SyntaxError("Negation operator (-) must not be succeeded by whitespace");
 		}
 
 		if (this.acceptLeadingToken("operator", "!")) {
 			var trace = this.getTokenTrace();
 			return this.instruction( trace, Instr.Not, [this.expr14()] );
 		} else if (this.acceptRoamingToken("operator", "!")) {
-			this.error("Logical not operator (!) must not be succeeded by whitespace");
+			throw new SyntaxError("Logical not operator (!) must not be succeeded by whitespace");
 		}
 
 		return this.expr15();
@@ -1045,9 +1051,9 @@ class Parser {
 			if (this.acceptTailingToken("grammar", ":")) {
 				if (!this.acceptTailingToken("lower_ident")) {
 					if (this.acceptRoamingToken("lower_ident")) {
-						this.error("Method operator (:) must not be preceded by whitespace");
+						throw new SyntaxError("Method operator (:) must not be preceded by whitespace");
 					} else {
-						this.error("Method operator (:) must be followed by method name");
+						throw new SyntaxError("Method operator (:) must be followed by method name");
 					}
 				}
 
@@ -1056,13 +1062,13 @@ class Parser {
 
 				if (!this.acceptTailingToken("grammar", "(")) {
 					if (this.acceptRoamingToken("grammar", "(")) {
-						this.error("Left parenthesis (() must not be preceded by whitespace");
+						throw new SyntaxError("Left parenthesis (() must not be preceded by whitespace");
 					} else {
-						this.error("Left parenthesis (() must appear after method name");
+						throw new SyntaxError("Left parenthesis (() must appear after method name");
 					}
 				}
 
-				var token = this.getToken();
+				final token = this.getToken();
 
 				if (this.acceptRoamingToken("grammar", ")")) {
 					expr = this.instruction( trace, Instr.Methodcall, [fun, expr] );
@@ -1074,7 +1080,7 @@ class Parser {
 					}
 
 					if (!this.acceptRoamingToken("grammar", ")"))
-						this.error("Right parenthesis ()) missing, to close method argument list", token);
+						throw new SyntaxError("Right parenthesis ()) missing, to close method argument list", token.trace);
 
 					expr = this.instruction( trace, Instr.Methodcall, [fun, expr, exprs] );
 				}
@@ -1082,30 +1088,27 @@ class Parser {
 				var trace = this.getTokenTrace();
 
 				if (this.acceptRoamingToken("grammar", "]"))
-					this.error("Indexing operator ([]) requires an index [X]");
+					throw new SyntaxError("Indexing operator ([]) requires an index [X]");
 
 				var aexpr = this.expr1();
 				if (this.acceptRoamingToken("grammar", ",")) {
 					final typ = this.assertRoamingType();
-					// TODO: maybe replace with another function
-					var longtp = this.getTokenRaw();
 
 					if (!this.acceptRoamingToken("grammar", "]"))
-						this.error("Right square bracket (]) missing, to close indexing operator [X,t]");
+						throw new SyntaxError("Right square bracket (]) missing, to close indexing operator [X,t]");
 
-					var typ = wire_expression_types.get(longtp);
 					expr = this.instruction( trace, Instr.IndexGet, [expr, aexpr, typ.id] );
 				} else if (this.acceptRoamingToken("grammar", "]")) {
 					expr = this.instruction( trace, Instr.IndexGet, [expr, aexpr] );
 				} else {
-					this.error("Indexing operator ([]) needs to be closed with comma (,) or right square bracket (])");
+					throw new SyntaxError("Indexing operator ([]) needs to be closed with comma (,) or right square bracket (])");
 				}
-			} else if (this.acceptRoamingToken("grammar", "[") && this.token.whitespaced) {
-				this.error("Indexing operator ([]) must not be preceded by whitespace");
+			} else if (this.acceptRoamingToken("grammar", "[") && this.isWhitespaced(this.token)) {
+				throw new SyntaxError("Indexing operator ([]) must not be preceded by whitespace");
 			} else if (this.acceptTailingToken("grammar", "(")) {
 				var trace = this.getTokenTrace();
 
-				var token = this.getToken();
+				final token = this.getToken();
 				var exprs: Array<Instruction> = [];
 
 				if (this.acceptRoamingToken("grammar", ")")) {
@@ -1118,21 +1121,16 @@ class Parser {
 					}
 
 					if (!this.acceptRoamingToken("grammar", ")"))
-						this.error("Right parenthesis ()) missing, to close function argument list", token);
+						throw new SyntaxError("Right parenthesis ()) missing, to close function argument list", token.trace);
 				}
 
 				if (this.acceptRoamingToken("grammar", "[")) {
-					if (!this.acceptRoamingType())
-						this.error('Return type operator ([]) does not support the type [${ this.getTokenRaw() }]');
-
-					var longtp = this.getTokenRaw();
+					final stype = this.assertRoamingType(null, 'Return type operator ([]) does not support the type [<T>]');
 
 					if (!this.acceptRoamingToken("grammar", "]"))
-						this.error("Right square bracket (]) missing, to close return type operator");
+						throw new SyntaxError("Right square bracket (]) missing, to close return type operator");
 
-					var stype = wire_expression_types.get( longtp ).id;
-
-					expr = this.instruction( trace, Instr.Stringcall, [expr, exprs, stype] );
+					expr = this.instruction( trace, Instr.Stringcall, [expr, exprs, stype.id] );
 				} else {
 					expr = this.instruction( trace, Instr.Stringcall, [expr, exprs, null] );
 				}
@@ -1146,36 +1144,34 @@ class Parser {
 
 	function expr16() {
 		if (this.acceptRoamingToken("grammar", "(")) {
-			var trace = this.getTokenTrace();
-			var token = this.getToken();
-			var expr = this.expr1();
+			final trace = this.getTokenTrace();
+			final token = this.getToken();
+			final expr = this.expr1();
 
-			if (!this.acceptRoamingToken("grammar", ")")) {
-				this.error("Right parenthesis ()) missing, to close grouped equation", token);
-			}
+			if (!this.acceptRoamingToken("grammar", ")"))
+				throw new SyntaxError("Right parenthesis ()) missing, to close grouped equation", token.trace);
 
 			return this.instruction( trace, Instr.GroupedEquation, [expr] );
 		}
 
 		if (this.acceptRoamingToken("lower_ident")) {
-			var trace = this.getTokenTrace();
-
-			var fun = this.getTokenRaw();
+			final trace = this.getTokenTrace();
+			final fun = this.getTokenRaw();
 
 			if (!this.acceptTailingToken("grammar", "(")) {
 				if (this.acceptRoamingToken("grammar", "(")) {
-					this.error("Left parenthesis (() must not be preceded by whitespace");
+					throw new SyntaxError("Left parenthesis (() must not be preceded by whitespace");
 				} else {
-					this.error("Left parenthesis (() must appear after function name, variables must start with uppercase letter,");
+					throw new SyntaxError("Left parenthesis (() must appear after function name, variables must start with uppercase letter,");
 				}
 			}
 
-			var token = this.getToken();
+			final token = this.getToken();
 
 			if (this.acceptRoamingToken("grammar", ")")) {
 				return this.instruction(trace, Instr.Call, [fun, []]);
 			} else {
-				var kv_exprs: Map<Instruction, Instruction> = new Map();
+				final kv_exprs: Map<Instruction, Instruction> = new Map();
 				var i_exprs: Array<Instruction> = [];
 
 				// TODO: Make this work for all functions.
@@ -1183,11 +1179,11 @@ class Parser {
 				// table( "yes" = "no", 5 = 2 )
 				if (fun == "table" || fun == "array") {
 					var kvtable = false;
-					var key = this.expr1();
+					final key = this.expr1();
 
 					if (this.acceptRoamingToken("operator", "=")) {
 						if (this.acceptRoamingToken("grammar", ")"))
-							this.error("Expression expected, got right paranthesis ())", this.getToken());
+							throw new SyntaxError("Expression expected, got right paranthesis ())");
 
 						kv_exprs[key] = this.expr1();
 						kvtable = true;
@@ -1202,16 +1198,16 @@ class Parser {
 
 							if (this.acceptRoamingToken("operator", "=")) {
 								if (this.acceptRoamingToken("grammar", ")"))
-									this.error("Expression expected, got right paranthesis ())", this.getToken());
+									throw new SyntaxError("Expression expected, got right paranthesis ())");
 
 								kv_exprs[key] = this.expr1();
 							} else {
-								this.error("Assignment operator (=) missing, to complete expression", token);
+								throw new SyntaxError("Assignment operator (=) missing, to complete expression", token.trace);
 							}
 						}
 
 						if (!this.acceptRoamingToken("grammar", ")"))
-							this.error("Right parenthesis ()) missing, to close function argument list", this.getToken());
+							throw new SyntaxError("Right parenthesis ()) missing, to close function argument list");
 
 						if (fun == "table") {
 							return this.instruction( trace, Instr.KVTable, [kv_exprs, i_exprs] );
@@ -1227,7 +1223,7 @@ class Parser {
 					i_exprs.push( this.expr1() );
 
 				if (!this.acceptRoamingToken("grammar", ")"))
-					this.error("Right parenthesis ()) missing, to close function argument list", token);
+					throw new SyntaxError("Right parenthesis ()) missing, to close function argument list", token.trace);
 
 				return this.instruction( trace, Instr.Call, [fun, kv_exprs, i_exprs] );
 			}
@@ -1239,12 +1235,12 @@ class Parser {
 	function expr17() {
 		if (this.acceptRoamingToken("number")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, Instr.Literal, [this.token.literal, this.token.raw] );
+			return this.instruction( trace, Instr.Literal, [this.getToken().literal] );
 		}
 
 		if (this.acceptRoamingToken("string")) {
 			var trace = this.getTokenTrace();
-			return this.instruction( trace, Instr.Literal, [this.token.literal, this.token.raw] );
+			return this.instruction( trace, Instr.Literal, [this.getToken().literal] );
 		}
 
 		if (this.acceptRoamingToken("operator", "~")) {
@@ -1252,9 +1248,9 @@ class Parser {
 
 			if (!this.acceptTailingToken("ident")) {
 				if (this.acceptRoamingToken("ident")) {
-					this.error("Triggered operator (~) must not be succeeded by whitespace");
+					throw new SyntaxError("Triggered operator (~) must not be succeeded by whitespace");
 				} else {
-					this.error("Triggered operator (~) must be preceded by variable");
+					throw new SyntaxError("Triggered operator (~) must be preceded by variable");
 				}
 			}
 
@@ -1267,9 +1263,9 @@ class Parser {
 
 			if (!this.acceptTailingToken("ident")) {
 				if (this.acceptRoamingToken("ident")) {
-					this.error("Delta operator ($) must not be succeeded by whitespace");
+					throw new SyntaxError("Delta operator ($) must not be succeeded by whitespace");
 				} else {
-					this.error("Delta operator ($) must be preceded by variable");
+					throw new SyntaxError("Delta operator ($) must be preceded by variable");
 				}
 			}
 
@@ -1282,9 +1278,9 @@ class Parser {
 
 			if (!this.acceptTailingToken("ident")) {
 				if (this.acceptRoamingToken("ident")) {
-					this.error("Connected operator (->) must not be succeeded by whitespace");
+					throw new SyntaxError("Connected operator (->) must not be succeeded by whitespace");
 				} else {
-					this.error("Connected operator (->) must be preceded by variable");
+					throw new SyntaxError("Connected operator (->) must be preceded by variable");
 				}
 			}
 
@@ -1298,15 +1294,15 @@ class Parser {
 	function expr18() {
 		if (this.acceptRoamingToken("ident")) {
 			if (this.acceptTailingToken("operator", "++")) {
-				this.error("Increment operator (++) must not be part of equation");
+				throw new SyntaxError("Increment operator (++) must not be part of equation");
 			} else if (this.acceptRoamingToken("operator", "++")) {
-				this.error("Increment operator (++) must not be preceded by whitespace");
+				throw new SyntaxError("Increment operator (++) must not be preceded by whitespace");
 			}
 
 			if (this.acceptTailingToken("operator", "--")) {
-				this.error("Decrement operator (--) must not be part of equation");
+				throw new SyntaxError("Decrement operator (--) must not be part of equation");
 			} else if (this.acceptRoamingToken("operator", "--")) {
-				this.error("Decrement operator (--) must not be preceded by whitespace");
+				throw new SyntaxError("Decrement operator (--) must not be preceded by whitespace");
 			}
 
 			this.trackBack();
@@ -1316,82 +1312,81 @@ class Parser {
 	}
 
 	function expr19() {
-		if (this.acceptRoamingToken("ident")) {
+		if (this.acceptRoamingToken("ident"))
 			return this.instruction( this.getTokenTrace(), Instr.Var, [this.getTokenRaw()] );
-		}
 
-		return this.exprError();
+		throw new SyntaxError( this.getExprError() );
 	}
 
-	function exprError() {
+	@:nullSafety(Off)
+	function getExprError(): String {
 		if(!this.hasTokens())
-			this.error("Further input required at } of code, incomplete expression", this.exprtoken);
+			throw new SyntaxError("Further input required at } of code, incomplete expression", this.exprtoken.trace);
 
 		if (this.acceptRoamingToken("operator", "+")) {
-			this.error("Addition operator (+) must be preceded by equation or value");
+			throw new SyntaxError("Addition operator (+) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "-")) { // can't occur (unary minus)
-			this.error("Subtraction operator (-) must be preceded by equation or value");
+			throw new SyntaxError("Subtraction operator (-) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "*")) {
-			this.error("Multiplication operator (*) must be preceded by equation or value");
+			throw new SyntaxError("Multiplication operator (*) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "/")) {
-			this.error("Division operator (/) must be preceded by equation or value");
+			throw new SyntaxError("Division operator (/) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "%")) {
-			this.error("Modulo operator (%) must be preceded by equation or value");
+			throw new SyntaxError("Modulo operator (%) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "^")) {
-			this.error("Exponentiation operator (^) must be preceded by equation or value");
+			throw new SyntaxError("Exponentiation operator (^) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "=")) {
-			this.error("Assignment operator (=) must be preceded by variable");
+			throw new SyntaxError("Assignment operator (=) must be preceded by variable");
 		} else if (this.acceptRoamingToken("operator", "+=")) {
-			this.error("Additive assignment operator (+=) must be preceded by variable");
+			throw new SyntaxError("Additive assignment operator (+=) must be preceded by variable");
 		} else if (this.acceptRoamingToken("operator", "-=")) {
-			this.error("Subtractive assignment operator (-=) must be preceded by variable");
+			throw new SyntaxError("Subtractive assignment operator (-=) must be preceded by variable");
 		} else if (this.acceptRoamingToken("operator", "*=")) {
-			this.error("Multiplicative assignment operator (*=) must be preceded by variable");
+			throw new SyntaxError("Multiplicative assignment operator (*=) must be preceded by variable");
 		} else if (this.acceptRoamingToken("operator", "/=")) {
-			this.error("Divisive assignment operator (/=) must be preceded by variable");
+			throw new SyntaxError("Divisive assignment operator (/=) must be preceded by variable");
 		} else if (this.acceptRoamingToken("operator", "&")) {
-			this.error("Logical and operator (&) must be preceded by equation or value");
+			throw new SyntaxError("Logical and operator (&) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "|")) {
-			this.error("Logical or operator (|) must be preceded by equation or value");
+			throw new SyntaxError("Logical or operator (|) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "==")) {
-			this.error("Equality operator (==) must be preceded by equation or value");
+			throw new SyntaxError("Equality operator (==) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "!=")) {
-			this.error("Inequality operator (!=) must be preceded by equation or value");
+			throw new SyntaxError("Inequality operator (!=) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", ">=")) {
-			this.error("Greater than or equal to operator (>=) must be preceded by equation or value");
+			throw new SyntaxError("Greater than or equal to operator (>=) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "<=")) {
-			this.error("Less than or equal to operator (<=) must be preceded by equation or value");
+			throw new SyntaxError("Less than or equal to operator (<=) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", ">")) {
-			this.error("Greater than operator (>) must be preceded by equation or value");
+			throw new SyntaxError("Greater than operator (>) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "<")) {
-			this.error("Less than operator (<) must be preceded by equation or value");
+			throw new SyntaxError("Less than operator (<) must be preceded by equation or value");
 		} else if (this.acceptRoamingToken("operator", "++")) {
-			this.error("Increment operator (++) must be preceded by variable");
+			throw new SyntaxError("Increment operator (++) must be preceded by variable");
 		} else if (this.acceptRoamingToken("operator", "--")) {
-			this.error("Decrement operator (--) must be preceded by variable");
+			throw new SyntaxError("Decrement operator (--) must be preceded by variable");
 		} else if (this.acceptRoamingToken("grammar", ")")) {
-			this.error("Right parenthesis ()) without matching left parenthesis");
+			throw new SyntaxError("Right parenthesis ()) without matching left parenthesis");
 		} else if (this.acceptRoamingToken("grammar", "(")) {
-			this.error("Left curly bracket ({) must be part of an if/while/for-statement block");
+			throw new SyntaxError("Left curly bracket ({) must be part of an if/while/for-statement block");
 		} else if (this.acceptRoamingToken("grammar", "{")) {
-			this.error("Right curly bracket (}) without matching left curly bracket");
+			throw new SyntaxError("Right curly bracket (}) without matching left curly bracket");
 		} else if (this.acceptRoamingToken("grammar", "[")) {
-			this.error("Left square bracket ([) must be preceded by variable");
+			throw new SyntaxError("Left square bracket ([) must be preceded by variable");
 		} else if (this.acceptRoamingToken("grammar", "]")) {
-			this.error("Right square bracket (]) without matching left square bracket");
+			throw new SyntaxError("Right square bracket (]) without matching left square bracket");
 		} else if (this.acceptRoamingToken("grammar", ",")) {
-			this.error("Comma (,) not expected here, missing an argument?");
+			throw new SyntaxError("Comma (,) not expected here, missing an argument?");
 		} else if (this.acceptRoamingToken("operator", ":")) {
-			this.error("Method operator (:) must not be preceded by whitespace");
+			throw new SyntaxError("Method operator (:) must not be preceded by whitespace");
 		} else if (this.acceptRoamingToken("keyword", "if")) {
-			this.error("If keyword (if) must not appear inside an equation");
+			throw new SyntaxError("If keyword (if) must not appear inside an equation");
 		} else if (this.acceptRoamingToken("keyword", "elseif")) {
-			this.error("Else-if keyword (} else if) must be part of an if-statement");
+			throw new SyntaxError("Else-if keyword (} else if) must be part of an if-statement");
 		} else if (this.acceptRoamingToken("keyword", "else")) {
-			this.error("Else keyword (else) must be part of an if-statement");
+			throw new SyntaxError("Else keyword (else) must be part of an if-statement");
 		} else {
-			this.error('Unexpected token found (${ this.readtoken.id })');
+			throw new SyntaxError('Unexpected token found (${ this.readtoken.id })');
 		}
-		return null;
 	}
 }

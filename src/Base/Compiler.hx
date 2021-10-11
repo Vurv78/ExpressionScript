@@ -1,20 +1,48 @@
 package base;
 
+// Fails to compile too lazy to fix my recent changes to the InstructionResult
+
 import haxe.exceptions.NotImplementedException;
 import lib.Type.E2Value;
 using lib.Instructions;
+using lib.Instructions.InstructionArgE;
 
 using Iterators;
 using Safety;
 using hx.strings.Strings;
 using lib.Std;
+using lib.Error;
 
 typedef ScopeID = UInt;
 typedef Scope = Map<String, String>;
 typedef ScopeSave = { scopes: Array<Scope>, id: ScopeID, scope: Scope };
 
-typedef E2Context = Any;
-typedef E2Function = { runtime: haxe.Constraints.Function, ret: E2Value, signature: String, returns: E2Value };
+typedef E2Context = {
+	/*inputs: Array<Input>,
+	outputs: Array<Output>,
+	*/
+	persist: Map<String, Bool>,
+	//includes: Array<Include>,
+	prf_counter: UInt,
+	prf_counters: Array<UInt>,
+
+	//delta_vars: Todo,
+	function_returns: Map<E2FunctionSig, E2TypeDef>,
+	functions: Map<E2FunctionSig, E2Function>,
+
+};
+typedef E2Function = {
+	runtime: (self: Null<E2Value>, args: Array<E2Value>) -> E2Value, // TODO: Type this
+	op_cost: UInt,
+	ret: E2Value,
+	signature: E2FunctionSig,
+	returns: E2Value
+};
+
+typedef InstructionResult = {
+	runtime: (instance: E2Context)->E2Value,
+	?type: E2TypeSig
+}
 
 class ScopeManager {
 	var scopes: Array<Scope>;
@@ -23,16 +51,18 @@ class ScopeManager {
 
 	// scope[0] should always be the global scope.
 	public inline function new() {
-		this.reset();
-	}
-
-	function reset() {
 		this.scope_id = 0;
 		this.scopes = [ [] ];
 		this.scope = this.scopes[0];
 	}
 
-	function push(?scope: Scope) {
+	public function reset() {
+		this.scope_id = 0;
+		this.scopes = [ [] ];
+		this.scope = this.scopes[0];
+	}
+
+	public function push(?scope: Scope) {
 		this.scope_id++;
 
 		switch (scope) {
@@ -43,7 +73,7 @@ class ScopeManager {
 		this.scopes[this.scope_id] = this.scope;
 	}
 
-	function pop() {
+	public function pop() {
 		this.scope_id--;
 		this.scope = this.scopes[this.scope_id];
 		return this.scopes[++this.scope_id];
@@ -52,7 +82,7 @@ class ScopeManager {
 	public inline function save(): ScopeSave
 		return { scopes: this.scopes, id: this.scope_id, scope: this.scope };
 
-	function load(save: ScopeSave) {
+	public function load(save: ScopeSave) {
 		this.scopes = save.scopes;
 		this.scope_id = save.id;
 		this.scope = save.scope;
@@ -76,37 +106,142 @@ class Compiler {
 
 	// Scopes
 	final scopes: ScopeManager;
+	var trace: Trace;
+
+	final instructions: Map<Instr, (instrs: InstructionArgs)->InstructionResult>;
 
 	//var persist: TodoTable;
 
 	public function new() {
-		this.context = null;
+		this.context = {
+			persist: [],
+			prf_counter: 0,
+			prf_counters: [],
+			function_returns: [],
+			functions: []
+		};
+
 		this.funcs = [];
 		this.ops = [];
 		this.scopes = new ScopeManager();
+		this.trace = { line: 1, char: 0 };
+
+		this.instructions = [
+			Root => (args) -> {
+				return () -> {
+					for(iarg in args) {
+						var instr_maybe: Null<Instruction> = iarg.sure();
+						instr_maybe.run( (i) -> {
+							trace('Running ${ i.id }');
+							callInstruction(i.id, i.args)();
+						});
+					}
+				}
+			},
+			Break => (args)-> {
+				return {
+					rt: (self) -> {
+						return Void;
+					}
+				}
+			},
+			Continue => (args)-> {
+				return () -> {
+					throw new RuntimeError("continue");
+				}
+			},
+			For => (args)-> {
+				final var_name: Null<String> = args[0].sure();
+				final start_expr: Null<Instruction> = args[1].sure();
+				final stop_expr: Null<Instruction> = args[2].sure();
+				final step_expr: Null<Instruction> = args[3].sure();
+				final body: Null<Instruction> = args[4].sure();
+
+				return () -> {
+					throw new NotImplementedException();
+				};
+			},
+			While => (args)-> {
+				final condition: Instruction = args[0].sure();
+				final body: Instruction = args[1].sure();
+
+				final is_dowhile: Bool = args[2].sure();
+
+				this.scopes.push();
+
+				final cond = this.callInstruction( condition.id, condition.args );
+				final body = this.callInstruction( condition.id, condition.args );
+
+				this.scopes.pop();
+
+				return () -> {
+					throw new NotImplementedException();
+				};
+			},
+			If => (args) -> {
+				final condition: Instruction = args[0].sure();
+				final body: Instruction = args[1].sure();
+				final ifeifs: Null<Array<Instruction>> = args[2].sure();
+				final is_else: Bool = args[3].sure();
+
+				this.scopes.push();
+					final body_eval = this.evaluate(body);
+				this.scopes.pop();
+
+				// TODO..
+
+				return () -> {
+					throw new NotImplementedException();
+				};
+			},
+			Ternary => (args) -> {
+				final expr: Instruction = args[0].sure();
+				final iff: Instruction = args[1].sure();
+				final els: Instruction = args[2].sure();
+
+				return () -> {
+					throw new NotImplementedException();
+				}
+			},
+			TernaryDefault => (args) -> {
+				final iff: Instruction = args[0].sure();
+				final els: Instruction = args[1].sure();
+
+				return () -> {
+					throw new NotImplementedException();
+				}
+			},
+			Call => (args) -> {
+				final exprs = [false];
+
+			},
+			Var => (args) -> {
+				final var_name: String = args[0].sure();
+				final data = this.getVariableType(var_name);
+
+				return {
+					rt: (self) -> {
+					},
+					type: data.type,
+				}
+			}
+		];
 	}
 
-	function error(msg: String, instr: Instruction)
-		throw '$msg at line ${ instr.trace.line }, char ${ instr.trace.char }';
-
-	public function process(root: Instruction) {
-		Compiler.callInstruction(root.id, root.args);
-	}
-
-	function setLocalVariableType(name: String, type: String, instr: Instruction) {
+	function setLocalVariableType(name: String, type: String) {
 		var typ = this.scopes.getType(name);
 		if (typ != type)
-			this.error('Variable ($name) of type [$typ] cannot be assigned value of type [$type]', instr);
+			throw new CompileError('Variable ($name) of type [$typ] cannot be assigned value of type [$type]');
 
 		this.scopes.setType(name, type);
 		return this.scopes.scope_id;
 	}
 
-	function setGlobalVariableType(name: String, type: String, instr: Instruction) {
+	function setGlobalVariableType(name: String, type: String) {
 		for ( i in this.scopes.scope_id.to(0) ) {
 			var typ = this.scopes.getScope(i)[name];
 			if (typ != type) {
-				this.error('Variable ($name) of type [$typ] cannot be assigned value of type [$type]', instr);
+				throw new CompileError('Variable ($name) of type [$typ] cannot be assigned value of type [$type]');
 			} else if (typ != null) {
 				return i;
 			}
@@ -116,7 +251,7 @@ class Compiler {
 		return 0;
 	}
 
-	function getVariableType(name: String, instr: Instruction):Null<{ type: String, id: ScopeID }> {
+	function getVariableType(name: String):Null<{ type: String, id: ScopeID }> {
 		for (i in this.scopes.scope_id.to(0)) {
 			var type = this.scopes.getScope(i)[name];
 			if (type != null) {
@@ -124,35 +259,44 @@ class Compiler {
 			}
 		}
 
-		this.error('Variable ($name) does not exist', instr);
-		return null;
-	}
-
-	function evaluateStatement(instr: Instruction, index: Int) {
-		var br = instr.args[index];
-		return callInstruction(instr.id, instr.args);
-	}
-
-	function evaluate(args: Instruction, index: Int) {
-		var ex = evaluateStatement(args, index);
+		throw new CompileError('Variable ($name) does not exist');
 	}
 
 	function has_operator() {
 
 	}
-}
 
-class Instructions {}
+	public function process(root: Instruction) {
+		this.scopes.push();
 
-@:nullSafety(Strict)
-function callInstruction(id: Instr, args: InstructionArgs) {
-	var name = 'instr_${Type.enumConstructor(id).toLowerCase()}';
-	if (!Reflect.hasField(Instructions, name))
-		throw new NotImplementedException('Unknown instruction: $name');
+		var script;
+		try {
+			script = this.evaluate(root);
+		} catch(err: CompileError) {
+			final trace = err.trace;
+			this.scopes.pop();
 
-	return Reflect.callMethod(Instructions, Reflect.field(Instructions, name), args);
-}
+			if (trace != null) {
+				throw new CompileError('${ err.message } at line ${ trace.line }, char ${ trace.char }', trace);
+			}
 
-inline function process(toks: Instruction): String {
-	return callInstruction(toks.id, toks.args);
+			throw err;
+		}
+
+		this.scopes.pop();
+
+		return script;
+	}
+
+	function callInstruction(id: Instr, args: InstructionArgs) {
+		switch this.instructions.get(id) {
+			case null: throw new CompileError('Unknown instruction: $id');
+			case fn: return fn(args);
+		}
+	}
+
+	function evaluate(expr: Instruction) {
+		this.trace = expr.trace;
+		return this.callInstruction(expr.id, expr.args);
+	}
 }
