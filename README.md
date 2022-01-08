@@ -1,6 +1,10 @@
 # ExpressionScript [![Release Shield](https://img.shields.io/github/v/release/Vurv78/ExpressionScript?include_prereleases)](https://github.com/Vurv78/ExpressionScript/releases/latest) [![License](https://img.shields.io/github/license/Vurv78/ExpressionScript?color=red&include_prereleases)](https://github.com/Vurv78/ExpressionScript/blob/master/LICENSE.md) [![Linter Badge](https://github.com/Vurv78/ExpressionScript/workflows/tests/badge.svg)](https://github.com/Vurv78/ExpressionScript/actions) [![github/Vurv78](https://img.shields.io/discord/824727565948157963?label=Discord&logo=discord&logoColor=ffffff&labelColor=7289DA&color=2c2f33)](https://discord.gg/yXKMt2XUXm)
 > Expression2 rewritten in Haxe.  
 
+# ⚠️ Notice ⚠️
+This was a cool project, but I might've put too much of an emphasis on backwards compatibility, the one thing holding me back on E2 in the first place. Since I'm not making progress on this nor E2, you might want to see https://github.com/Vurv78/Expression4 while this is on hold. It doesn't help that I've kind of fallen out of heart for Haxe. If this does come back, it may be in Rust ⚙️.
+
+##  Readme
 This was originally created to be a template to rewrite E2 for S&box, however at this point S&Box looks awful and I'm not interested in C#.  
 All credit and ownership of Expression2 goes to the [wireteam](https://github.com/wiremod) & [wiremod](https://github.com/wiremod/wire).  
 
