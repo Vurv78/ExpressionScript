@@ -2,7 +2,7 @@
 > Expression2 rewritten in Haxe.  
 
 # ⚠️ Notice ⚠️
-This was a cool project, but I might've put too much of an emphasis on backwards compatibility, the one thing holding me back on E2 in the first place. Since I'm not making progress on this nor E2, you might want to see https://github.com/Vurv78/Expression4 while this is on hold. It doesn't help that I've kind of fallen out of heart for Haxe. If this does come back, it may be in Rust ⚙️.
+This was a cool project, but I might've put too much of an emphasis on backwards compatibility, the one thing holding me back on E2 in the first place. Since I'm not making progress on this nor E2, you might want to see https://github.com/Vurv78/Expressive while this is on hold. It doesn't help that I've kind of fallen out of heart for Haxe. If this does come back, it may be in Rust ⚙️.
 
 ##  Readme
 This was originally created to be a template to rewrite E2 for S&box, however at this point S&Box looks awful and I'm not interested in C#.  
